@@ -43,6 +43,26 @@ python -m src.main --mode backtest --csv data/sample_xauusd_h1.csv
 python -m src.main --mode chart --csv data/sample_xauusd_h1.csv
 ```
 
+## اتصال به Twelve Data API (داده زنده، جایگزین سبک MT5)
+
+برای دریافت داده از [Twelve Data](https://twelvedata.com) (کار می‌کند روی هر سیستم‌عاملی،
+از جمله سرورهای ابری لینوکسی که MT5 روی آن‌ها اجرا نمی‌شود):
+
+1. یک حساب رایگان در twelvedata.com بسازید و کلید API را از داشبورد کپی کنید
+2. کلید را **در کد قرار ندهید** — به‌جای آن:
+   ```bash
+   export TWELVEDATA_API_KEY="کلید-شما"      # لینوکس/مک
+   set TWELVEDATA_API_KEY=کلید-شما           # ویندوز (cmd)
+   ```
+3. اجرای داشبورد:
+   ```bash
+   streamlit run streamlit_app.py
+   ```
+   و از نوار کناری «Twelve Data API (زنده)» را انتخاب کنید.
+
+برای دیپلوی روی Streamlit Cloud، کلید را در پنل **Secrets** وارد کنید (نه در فایل)؛
+جزئیات کامل در `docs/DEPLOY.md`.
+
 ## اتصال زنده به MT5
 
 1. ترمینال MetaTrader 5 را باز و وارد حساب خود شوید (یا اطلاعات ورود را در `config/config.yaml` زیر کلید `mt5` وارد کنید).

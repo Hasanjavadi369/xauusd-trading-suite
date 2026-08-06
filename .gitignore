@@ -12,3 +12,7 @@ data/*.csv
 build/
 dist/
 results/
+
+# کلیدهای API — هرگز نباید commit شوند
+.streamlit/secrets.toml
+*.key

@@ -15,6 +15,7 @@ Streamlit Community Cloud (share.streamlit.io)، بدون نیاز کاربر ب
 from __future__ import annotations
 
 import io
+import os
 
 import pandas as pd
 import streamlit as st
@@ -26,6 +27,7 @@ from src.backtest.engine import BacktestEngine, BacktestConfig
 from src.risk_management.position_sizing import SymbolSpec
 from src.risk_management.trade_manager import RiskConfig
 from src.chart.chart_app import build_figure
+from src.connectors.twelvedata_connector import fetch_time_series, TwelveDataError
 
 st.set_page_config(page_title="XAUUSD Trading Suite", layout="wide", page_icon="📈")
 
@@ -61,7 +63,30 @@ def load_default_sample() -> pd.DataFrame:
 # ---------------------------------------------------------------------- #
 st.sidebar.title("⚙️ تنظیمات XAUUSD Trading Suite")
 
-uploaded = st.sidebar.file_uploader("فایل CSV سفارشی (اختیاری)", type=["csv"])
+st.sidebar.subheader("منبع داده")
+data_source = st.sidebar.radio(
+    "داده از کجا بیاید؟",
+    ["داده نمونه (شبیه‌سازی‌شده)", "آپلود CSV", "Twelve Data API (زنده)"],
+    index=0,
+)
+
+uploaded = None
+td_symbol, td_interval, td_bars, td_fetch_btn = None, None, None, False
+
+if data_source == "آپلود CSV":
+    uploaded = st.sidebar.file_uploader("فایل CSV", type=["csv"])
+elif data_source == "Twelve Data API (زنده)":
+    td_symbol = st.sidebar.text_input("نماد (فرمت Twelve Data)", value="XAU/USD")
+    td_interval = st.sidebar.selectbox("تایم‌فریم", ["M15", "M30", "H1", "H4", "D1"], index=2)
+    td_bars = st.sidebar.slider("تعداد کندل دریافتی", 100, 2000, 500, step=100)
+    td_fetch_btn = st.sidebar.button("📡 دریافت داده از Twelve Data", use_container_width=True)
+    with st.sidebar.expander("راهنمای کلید API"):
+        st.write(
+            "کلید API را در این کد وارد نکنید. آن را در Streamlit Cloud → "
+            "**Settings → Secrets** با نام `twelvedata_api_key` ثبت کنید، یا هنگام اجرای "
+            "محلی متغیر محیطی `TWELVEDATA_API_KEY` را تنظیم کنید. جزئیات: docs/DEPLOY.md"
+        )
+
 n_bars_display = st.sidebar.slider("تعداد کندل نمایش در چارت", 100, 2000, 500, step=50)
 
 st.sidebar.markdown("---")
@@ -89,9 +114,45 @@ config["smc"]["swing_lookback"] = swing_lookback
 config["smc"]["order_block_lookback"] = order_block_lookback
 config["smc"]["fvg_min_gap_pct"] = fvg_min_gap_pct
 
+def get_twelvedata_key() -> str | None:
+    """کلید را ابتدا از Streamlit Secrets و سپس از متغیر محیطی می‌خواند؛ هرگز hardcode نمی‌شود."""
+    try:
+        if "twelvedata_api_key" in st.secrets:
+            return st.secrets["twelvedata_api_key"]
+    except Exception:
+        pass
+    return os.environ.get("TWELVEDATA_API_KEY")
+
+
 if uploaded is not None:
     df_raw = load_csv_from_bytes(uploaded.read())
     st.sidebar.success(f"{len(df_raw)} کندل از فایل شما بارگذاری شد.")
+elif data_source == "Twelve Data API (زنده)":
+    if td_fetch_btn:
+        api_key = get_twelvedata_key()
+        if not api_key:
+            st.sidebar.error(
+                "کلید API تنظیم نشده. آن را در Streamlit Secrets (نام: twelvedata_api_key) "
+                "یا متغیر محیطی TWELVEDATA_API_KEY قرار دهید."
+            )
+        else:
+            try:
+                with st.spinner(f"در حال دریافت {td_symbol} از Twelve Data..."):
+                    st.session_state["td_data"] = fetch_time_series(
+                        symbol=td_symbol, interval=td_interval,
+                        outputsize=td_bars, api_key=api_key,
+                    )
+                st.sidebar.success(f"{len(st.session_state['td_data'])} کندل دریافت شد.")
+            except TwelveDataError as e:
+                st.sidebar.error(f"خطای Twelve Data: {e}")
+            except Exception as e:
+                st.sidebar.error(f"خطای اتصال: {e}")
+
+    if "td_data" in st.session_state:
+        df_raw = st.session_state["td_data"]
+    else:
+        st.sidebar.info("روی «دریافت داده از Twelve Data» بزنید تا داده زنده بیاید.")
+        df_raw = load_default_sample()
 else:
     df_raw = load_default_sample()
     st.sidebar.info("از داده نمونه (شبیه‌سازی‌شده) استفاده می‌شود.")
