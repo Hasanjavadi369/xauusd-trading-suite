@@ -22,7 +22,20 @@
 
 این نسخه **فاز ۱ (هسته‌ی تحلیلی و بک‌تست)** است. برای جزئیات نقشه‌ی راه به `docs/ARCHITECTURE.md` مراجعه کنید.
 
-## نصب سریع
+## 🌐 داشبورد وب زنده (لینک عمومی از طریق گیت‌هاب)
+
+این پروژه یک داشبورد Streamlit (`streamlit_app.py`) دارد که با اتصال ریپازیتوری
+به [Streamlit Community Cloud](https://share.streamlit.io) به یک **لینک عمومی
+همیشه در دسترس** تبدیل می‌شود — با باز کردن لینک (حتی از گوشی)، داشبورد خودش
+اجرا می‌شود، بدون نیاز به نصب چیزی. راهنمای کامل: `docs/DEPLOY.md`
+
+اجرای محلی داشبورد:
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+## نصب سریع (CLI)
 
 ```bash
 pip install -r requirements.txt

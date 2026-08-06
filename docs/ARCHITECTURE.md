@@ -47,6 +47,12 @@
 - `chart_app.py`: چارت کندل‌استیک تعاملی (Plotly/Dash) با لایه‌های SMC، اندیکاتورها،
   و نشانگر Entry/SL/TP — قابل اجرا مستقل یا از طریق `main.py`.
 
+### `streamlit_app.py` (ریشه پروژه)
+داشبورد وب مبتنی بر Streamlit که همان `build_figure` از `chart_app.py` را برای
+رسم چارت استفاده می‌کند، به‌علاوه پنل تنظیمات ریسک/SMC و اجرای بک‌تست از طریق UI.
+برای دیپلوی رایگان با لینک عمومی روی Streamlit Community Cloud طراحی شده
+(`docs/DEPLOY.md`).
+
 ### `src/connectors`
 - `mt5_connector.py`: پوشش کامل روی پکیج `MetaTrader5` برای داده و اجرای سفارش
   (فقط روی ویندوز فعال است؛ در سایر سیستم‌عامل‌ها gracefully غیرفعال می‌شود).
