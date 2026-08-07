@@ -22,29 +22,30 @@ pip install -r requirements.txt
 pip install MetaTrader5
 ```
 
-## تست سریع با داده واقعی (بدون MT5)
+## تست سریع (بدون MT5)
 
-⚠️ این پروژه دیگر داده‌ی شبیه‌سازی‌شده ندارد. برای تست سریع، یک فایل CSV واقعی از
-Twelve Data بگیرید (حساب رایگان کافی است):
+این پروژه هیچ داده‌ی فرضی/شبیه‌سازی‌شده‌ای همراه ندارد. برای اجرا باید یک منبع
+داده‌ی **واقعی** فراهم کنید — یکی از این دو راه:
 
-```bash
-export TWELVEDATA_API_KEY="کلید-شما"
-python scripts/fetch_real_data.py --symbol XAU/USD --interval H1 --bars 5000 --out data/xauusd_real.csv
-```
-
-یا هر CSV واقعی دیگری (مثلاً خروجی MT5 History Center) با ستون‌های
-`datetime/time, open, high, low, close, volume` را در `data/` قرار دهید.
+1. **فایل CSV واقعی خودتان**: خروجی تاریخچه‌ی قیمت از MT5 (Export to CSV)،
+   بروکر، یا هر منبع معتبر دیگر، با ستون‌های
+   `datetime, open, high, low, close, volume` و ذخیره در مسیر دلخواه
+   (مثلاً `data/XAUUSD_H1_real.csv`).
+2. **Twelve Data API**: با گرفتن یک کلید رایگان از
+   [twelvedata.com](https://twelvedata.com) و تنظیم آن به‌صورت متغیر محیطی
+   `TWELVEDATA_API_KEY`، داده‌ی واقعی زنده مستقیماً در داشبورد Streamlit یا
+   از طریق `src/connectors/twelvedata_connector.py` دریافت می‌شود.
 
 ### اجرای بک‌تست
 
 ```bash
-python -m src.main --mode backtest --csv data/xauusd_real.csv
+python -m src.main --mode backtest --csv data/XAUUSD_H1_real.csv
 ```
 
 ### اجرای چارت تعاملی (در مرورگر باز می‌شود)
 
 ```bash
-python -m src.main --mode chart --csv data/xauusd_real.csv
+python -m src.main --mode chart --csv data/XAUUSD_H1_real.csv
 ```
 
 ## اتصال به Twelve Data API (داده زنده، جایگزین سبک MT5)

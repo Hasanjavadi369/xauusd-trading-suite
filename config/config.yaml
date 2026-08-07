@@ -43,10 +43,10 @@ backtest:
   spread_points: 20
   slippage_points: 5
 
-ai:
-  model_type: "gradient_boosting"   # یا "random_forest"
-  tp_atr_mult: 2.0                   # سطح فرضی TP برای برچسب‌گذاری Triple-Barrier
-  sl_atr_mult: 1.0                   # سطح فرضی SL برای برچسب‌گذاری Triple-Barrier
-  max_horizon_bars: 20               # افق زمانی بررسی برخورد به سقف/کف
-  min_confidence_pct: 60.0           # حداقل احتمال مدل برای صدور سیگنال
-  test_size: 0.2                     # نسبت داده تست (بخش انتهایی/جدیدتر سری زمانی)
+ml:
+  enabled: false                     # اگر true باشد و model_path موجود باشد، امتیاز مدل به سیگنال‌ها اضافه می‌شود
+  model_path: "models/signal_scorer_ensemble.joblib"   # موتور Ensemble (پیش‌فرض) یا فایل SignalScorer قدیمی
+  min_probability: 0.0                # اگر > 0 باشد، سیگنال‌هایی با ml_probability کمتر از این مقدار در بک‌تست/زنده فیلتر می‌شوند
+  continuous_learning:
+    enabled: true                     # ثبت نتایج معاملات واقعی (بک‌تست/دمو) در models/training_log.csv
+    min_samples_to_retrain: 30        # حداقل نمونه‌ی جدید لازم برای بازآموزی معنادار

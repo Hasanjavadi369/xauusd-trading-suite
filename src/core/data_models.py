@@ -40,6 +40,7 @@ class Signal:
     sources: List[SignalSource] = field(default_factory=list)
     reasons: List[str] = field(default_factory=list)   # توضیح متنی دلایل سیگنال
     metadata: Dict[str, Any] = field(default_factory=dict)
+    ml_probability: Optional[float] = None   # امتیاز مدل یادگیری ماشین (۰ تا ۱)، اگر فعال باشد
 
     @property
     def risk_reward(self) -> float:

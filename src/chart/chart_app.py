@@ -9,7 +9,7 @@
   - نشانگر Entry/SL/TP برای سیگنال فعلی
 
 اجرا:
-    python -m src.chart.chart_app --csv data/xauusd_real.csv  # با scripts/fetch_real_data.py بسازید
+    python -m src.chart.chart_app --csv data/XAUUSD_H1_real.csv
 """
 from __future__ import annotations
 
@@ -29,17 +29,22 @@ def build_figure(
     zones: list[Zone] | None = None,
     signal: Signal | None = None,
     subpanels: dict | None = None,
+    zone_kinds: list[str] | None = None,
+    height: int = 780,
 ) -> go.Figure:
     """
     df: OHLCV با ایندکس datetime
     overlays: {"EMA20": pd.Series, "SMA50": pd.Series, ...} -> روی چارت اصلی رسم می‌شود
-    zones: لیست Zone (Order Block / FVG / Supply-Demand) برای رسم مستطیل‌های رنگی
+    zones: لیست Zone (Order Block / FVG / Supply-Demand / Liquidity / S-R) برای رسم مستطیل‌های رنگی
     signal: سیگنال فعلی برای نمایش خطوط Entry/SL/TP
     subpanels: {"RSI": pd.Series, "MACD": pd.Series, ...} -> هرکدام یک ردیف جدا
+    zone_kinds: اگر مشخص شود، فقط ناحیه‌هایی با این kind رسم می‌شوند (فیلتر نمایش)
     """
     overlays = overlays or {}
     zones = zones or []
     subpanels = subpanels or {}
+    if zone_kinds is not None:
+        zones = [z for z in zones if z.kind in zone_kinds]
 
     # این ماژول برای رسم به یک DatetimeIndex نیاز دارد؛ اگر df ستون 'time' دارد
     # (قرارداد بقیه پروژه: RangeIndex + ستون time)، آن را موقتاً ایندکس می‌کنیم.
@@ -73,15 +78,32 @@ def build_figure(
             row=1, col=1,
         )
 
-    # --- ناحیه‌های SMC (Order Block / FVG / Supply-Demand) ---
+    # --- ناحیه‌های SMC (Order Block / FVG / Supply-Demand / Liquidity / S-R) ---
     zone_colors = {
-        "order_block_bullish": "rgba(38,166,154,0.25)",
-        "order_block_bearish": "rgba(239,83,80,0.25)",
+        "order_block_bullish": "rgba(38,166,154,0.28)",
+        "order_block_bearish": "rgba(239,83,80,0.28)",
         "fvg_bullish": "rgba(0,188,212,0.20)",
         "fvg_bearish": "rgba(255,64,129,0.20)",
         "supply": "rgba(239,83,80,0.15)",
         "demand": "rgba(38,166,154,0.15)",
+        "liquidity_eqh": "rgba(245,166,35,0.18)",
+        "liquidity_eql": "rgba(123,97,255,0.18)",
+        "support": "rgba(38,166,154,0.12)",
+        "resistance": "rgba(239,83,80,0.12)",
     }
+    zone_labels = {
+        "order_block_bullish": "Order Block صعودی",
+        "order_block_bearish": "Order Block نزولی",
+        "fvg_bullish": "FVG صعودی",
+        "fvg_bearish": "FVG نزولی",
+        "supply": "ناحیه عرضه (Supply)",
+        "demand": "ناحیه تقاضا (Demand)",
+        "liquidity_eqh": "نقدینگی سقف‌های برابر (EQH)",
+        "liquidity_eql": "نقدینگی کف‌های برابر (EQL)",
+        "support": "حمایت",
+        "resistance": "مقاومت",
+    }
+    kinds_present = []
     for zone in zones:
         color = zone_colors.get(zone.kind, "rgba(150,150,150,0.15)")
         end_time = zone.end_time or df.index[-1]
@@ -89,6 +111,22 @@ def build_figure(
             type="rect", xref="x", yref="y",
             x0=zone.start_time, x1=end_time, y0=zone.bottom, y1=zone.top,
             fillcolor=color, line=dict(width=0), row=1, col=1,
+        )
+        if zone.kind not in kinds_present:
+            kinds_present.append(zone.kind)
+
+    # ردهای نامرئی فقط برای نمایش لجند رنگ هر نوع ناحیه (چون add_shape خودش در لجند دیده نمی‌شود)
+    import re as _re
+    for kind in kinds_present:
+        raw = zone_colors.get(kind, "rgba(150,150,150,0.15)")
+        solid_color = _re.sub(r",\s*[\d.]+\)$", ",1.0)", raw)
+        fig.add_trace(
+            go.Scatter(
+                x=[df.index[0]], y=[None], mode="markers",
+                marker=dict(size=10, color=solid_color, symbol="square"),
+                name=zone_labels.get(kind, kind), showlegend=True,
+            ),
+            row=1, col=1,
         )
 
     # --- سیگنال فعلی: Entry / SL / TP ---
@@ -116,12 +154,61 @@ def build_figure(
 
     fig.update_layout(
         template="plotly_dark",
-        height=850,
-        margin=dict(l=40, r=40, t=30, b=30),
+        height=height,
+        paper_bgcolor="#0e1117",
+        plot_bgcolor="#0e1117",
+        font=dict(family="Vazirmatn, Tahoma, sans-serif", color="#e6e6e6"),
+        margin=dict(l=40, r=40, t=40, b=20),
         xaxis_rangeslider_visible=False,
-        legend=dict(orientation="h", y=1.02),
-        title="XAUUSD - تحلیل زنده",
+        legend=dict(orientation="h", y=1.06, x=0, bgcolor="rgba(0,0,0,0)"),
+        hovermode="x unified",
     )
+    fig.update_xaxes(showgrid=True, gridcolor="rgba(255,255,255,0.06)")
+    fig.update_yaxes(showgrid=True, gridcolor="rgba(255,255,255,0.06)")
+    return fig
+
+
+def build_equity_figure(equity_curve: pd.Series, initial_balance: float) -> go.Figure:
+    """نمودار Equity Curve + Drawdown زیر آن، برای نمایش نتیجه بک‌تست."""
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.04,
+        row_heights=[0.7, 0.3],
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=list(range(len(equity_curve))), y=equity_curve.values,
+            mode="lines", name="Equity", line=dict(color="#f5a623", width=2),
+            fill="tozeroy", fillcolor="rgba(245,166,35,0.08)",
+        ),
+        row=1, col=1,
+    )
+    fig.add_hline(y=initial_balance, line_dash="dash", line_color="#888",
+                  annotation_text="موجودی اولیه", row=1, col=1)
+
+    running_max = equity_curve.cummax()
+    drawdown_pct = (equity_curve - running_max) / running_max * 100
+    fig.add_trace(
+        go.Scatter(
+            x=list(range(len(drawdown_pct))), y=drawdown_pct.values,
+            mode="lines", name="Drawdown %", line=dict(color="#ef5350", width=1.5),
+            fill="tozeroy", fillcolor="rgba(239,83,80,0.15)",
+        ),
+        row=2, col=1,
+    )
+
+    fig.update_layout(
+        template="plotly_dark",
+        height=420,
+        paper_bgcolor="#0e1117",
+        plot_bgcolor="#0e1117",
+        margin=dict(l=40, r=20, t=20, b=20),
+        showlegend=False,
+        hovermode="x unified",
+    )
+    fig.update_yaxes(title_text="Equity ($)", row=1, col=1, gridcolor="rgba(255,255,255,0.06)")
+    fig.update_yaxes(title_text="Drawdown (%)", row=2, col=1, gridcolor="rgba(255,255,255,0.06)")
+    fig.update_xaxes(title_text="شماره معامله", row=2, col=1, gridcolor="rgba(255,255,255,0.06)")
     return fig
 
 

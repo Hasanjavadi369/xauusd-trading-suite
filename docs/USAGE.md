@@ -1,15 +1,9 @@
 # راهنمای استفاده — XAUUSD Trading Suite
 
-> پیش‌نیاز همه‌ی بخش‌های زیر: یک فایل CSV واقعی داشته باشید. اگر ندارید:
-> ```bash
-> export TWELVEDATA_API_KEY="کلید-شما"
-> python scripts/fetch_real_data.py --symbol XAU/USD --interval H1 --bars 5000 --out data/xauusd_real.csv
-> ```
-
 ## ۱. بک‌تست یک استراتژی
 
 ```bash
-python -m src.main --mode backtest --csv data/xauusd_real.csv
+python -m src.main --mode backtest --csv data/XAUUSD_H1_real.csv
 ```
 
 خروجی شامل: تعداد معاملات، Win Rate، Profit Factor، Sharpe Ratio، Max Drawdown، سود/زیان خالص.
@@ -58,7 +52,7 @@ print(results.head())
 ## ۳. چارت تعاملی
 
 ```bash
-python -m src.main --mode chart --csv data/xauusd_real.csv
+python -m src.main --mode chart --csv data/XAUUSD_H1_real.csv
 ```
 
 مرورگر را روی `http://127.0.0.1:8050` باز کنید. چارت شامل کندل‌استیک، حجم،
@@ -74,7 +68,78 @@ python -m src.main --mode live --send-orders True    # ارسال واقعی م�
 
 اطلاعات ورود حساب را از قبل در `config/config.yaml` بخش `mt5` وارد کنید.
 
-## ۵. استفاده مستقیم از ماژول‌ها در کد خودتان
+## ۵. مدل امتیازدهی سیگنال (Machine Learning)
+
+علاوه بر امتیاز اطمینان قانون‌محور (`confidence`)، می‌توانید یک مدل طبقه‌بندی
+(XGBoost/LightGBM/یا جایگزین سبک scikit-learn) train کنید که یاد می‌گیرد از
+روی همان فیچرهای موتور SMC (فاصله/قدرت Order Block، همپوشانی و قدرت FVG،
+هم‌جهتی چند اندیکاتور، ...) چه ترکیبی تاریخاً بیشتر به Take Profit رسیده تا
+Stop Loss. **این مدل قیمت را پیش‌بینی نمی‌کند** — فقط سیگنال‌های قانون‌محور
+موجود را امتیازدهی می‌کند و کاملاً قابل train روی داده‌ی خودتان و تفسیرپذیر
+(با گزارش اهمیت فیچرها) است.
+
+### ۵.۱ آموزش مدل
+
+```bash
+python scripts/train_signal_model.py --csv data/XAUUSD_H1_real.csv
+```
+
+خروجی شامل تعداد سیگنال‌های برچسب‌خورده (برد/باخت)، معیارهای ارزیابی
+(accuracy/precision/recall/F1/ROC-AUC/confusion matrix) روی یک برش **زمانی**
+از داده (نه تصادفی، تا نشتِ اطلاعات از آینده رخ ندهد)، و مقایسه با baseline
+قانون‌محور خام. مدل در `models/signal_scorer.joblib` و متادیتای آموزش در
+`models/signal_scorer.meta.json` ذخیره می‌شود.
+
+گزینه‌های مهم:
+
+```bash
+python scripts/train_signal_model.py \
+    --csv data/my_5years_h1.csv \
+    --backend xgboost \
+    --output models/signal_scorer.joblib \
+    --test-size 0.25 \
+    --max-horizon-bars 200
+```
+
+> نکته: با داده‌ی نمونه‌ی کوچک پروژه فقط چند ده سیگنال برچسب‌خورده به دست
+> می‌آید که برای نمایش/تست کافی است اما برای یک مدل قابل‌اعتماد واقعی به
+> چند سال داده‌ی تاریخی (چند صد سیگنال) نیاز دارید.
+
+### ۵.۲ فعال‌سازی مدل در بک‌تست/زنده
+
+در `config/config.yaml`:
+
+```yaml
+ml:
+  enabled: true
+  model_path: "models/signal_scorer.joblib"
+  min_probability: 0.0   # اگر > 0، سیگنال‌های زیر این احتمال نادیده گرفته می‌شوند
+```
+
+با `ml.enabled: true`، همان دستورات بک‌تست/زنده‌ی بالا خودکار مدل را بارگذاری
+می‌کنند و هر سیگنال یک فیلد `ml_probability` و یک دلیل اضافه در `reasons`
+می‌گیرد. اگر فایل مدل پیدا نشود یا مدل train نشده باشد، اجرای برنامه متوقف
+نمی‌شود — فقط هشدار می‌دهد و مثل قبل بدون امتیاز ML ادامه می‌دهد.
+
+### ۵.۳ استفاده مستقیم در کد
+
+```python
+from src.ml.scorer import SignalScorer
+from src.strategy.signal_engine import SMCConfluenceStrategy
+
+scorer = SignalScorer.load("models/signal_scorer.joblib")
+strategy = SMCConfluenceStrategy(config, scorer=scorer)
+df = strategy.prepare(df)
+
+signal = strategy.generate_latest_signal(df)
+if signal:
+    print(signal.confidence, signal.ml_probability)  # قانون‌محور و ML کنار هم
+```
+
+در داشبورد Streamlit هم بخش «🤖 مدل امتیازدهی سیگنال (ML)» در نوار کناری
+اضافه شده که مسیر مدل، فعال‌سازی، و آستانه‌ی حداقل احتمال را تنظیم می‌کند.
+
+## ۶. استفاده مستقیم از ماژول‌ها در کد خودتان
 
 ```python
 import pandas as pd
@@ -83,7 +148,7 @@ from src.indicators.calculator import compute_all_indicators
 from src.strategy.signal_engine import SMCConfluenceStrategy
 
 config = load_config("config/config.yaml")
-df = pd.read_csv("data/xauusd_real.csv", parse_dates=["datetime"])
+df = pd.read_csv("data/XAUUSD_H1_real.csv", parse_dates=["datetime"])
 df = df.rename(columns={"datetime": "time"})
 
 df = compute_all_indicators(df, config)

@@ -128,6 +128,10 @@ class BacktestEngine:
             take_profit=signal.take_profit,
             open_time=timestamp,
             tags=[s.value for s in signal.sources],
+            metadata={
+                "features": (signal.metadata or {}).get("features"),
+                "ml_probability": signal.ml_probability,
+            },
         )
 
     def _process_open_trade(self, bar: pd.Series, bar_time, atr_value: float) -> None:

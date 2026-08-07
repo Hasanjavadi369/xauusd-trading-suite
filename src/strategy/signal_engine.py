@@ -7,20 +7,38 @@
 3. الگوهای کندلی و اندیکاتورها (RSI, MACD, SuperTrend, ADX, Bollinger) به‌عنوان
    فیلتر تأییدی برای افزایش/کاهش امتیاز اطمینان (confidence) استفاده می‌شوند.
 4. SL بر اساس ATR و لبه‌ی ناحیه SMC، TP بر اساس Risk/Reward هدف در config تعیین می‌شود.
+5. (اختیاری) اگر یک SignalScorer یادگیری‌ماشین (src/ml) به استراتژی داده شود،
+   علاوه بر confidence قانون‌محور، یک احتمال موفقیت آماری (ml_probability) هم
+   محاسبه و به سیگنال ضمیمه می‌شود. این مدل قیمت را پیش‌بینی نمی‌کند؛ فقط از
+   روی همین فیچرهای قابل‌مشاهده (فاصله/قدرت OB، FVG، هم‌جهتی اندیکاتورها، ...)
+   یاد می‌گیرد که تاریخاً چه ترکیبی از این فیچرها بیشتر به TP رسیده تا SL.
 
-خروجی نهایی: لیستی از Signal با entry/SL/TP/confidence/reasons.
+خروجی نهایی: لیستی از Signal با entry/SL/TP/confidence/ml_probability/reasons.
 """
-from typing import List
+from typing import List, Optional, TYPE_CHECKING
 import pandas as pd
 
 from ..core.data_models import Signal, TradeDirection, SignalSource
 from ..smc import structure, order_blocks, fvg as fvg_mod, liquidity, supply_demand
 from ..price_action import candlestick_patterns, support_resistance
 from .base_strategy import BaseStrategy
+from ..ml.features import feature_dict_to_row
+
+if TYPE_CHECKING:
+    from ..ml.scorer import SignalScorer
 
 
 class SMCConfluenceStrategy(BaseStrategy):
     name = "SMC_ICT_Confluence"
+
+    def __init__(self, config: dict, scorer: Optional["SignalScorer"] = None):
+        """
+        scorer: نمونه‌ی اختیاری از src.ml.scorer.SignalScorer (از قبل train شده و
+            load شده). اگر داده شود، هر سیگنال یک ml_probability هم می‌گیرد.
+            کاملاً اختیاری است — بدون آن، موتور دقیقاً مثل قبل (فقط قانون‌محور) کار می‌کند.
+        """
+        super().__init__(config)
+        self.scorer = scorer
 
     def prepare(self, df: pd.DataFrame) -> pd.DataFrame:
         df = candlestick_patterns.detect_all_patterns(df)
@@ -76,11 +94,43 @@ class SMCConfluenceStrategy(BaseStrategy):
             confidence = 40.0
             reasons = [f"Order Block {'صعودی' if is_bullish else 'نزولی'} شناسایی شد"]
             sources = [SignalSource.ORDER_BLOCK]
+            row = df.iloc[idx]
+            atr_val = row.get("atr", (zone.top - zone.bottom))
+            if not atr_val or pd.isna(atr_val) or atr_val == 0:
+                atr_val = max(zone.top - zone.bottom, 1e-6)
+
+            # --- فیچرهای پایه (همیشه محاسبه می‌شوند، چه scorer باشد چه نباشد) ---
+            features = {
+                "ob_strength": float(zone.strength),
+                "ob_width_atr": float((zone.top - zone.bottom) / atr_val),
+                "trend_aligned": 0.0,
+                "fvg_confluence": 0.0,
+                "fvg_strength": 0.0,
+                "candle_confirmation": 0.0,
+                "rsi_value": float(row.get("rsi", 50.0)) if not pd.isna(row.get("rsi", 50.0)) else 50.0,
+                "rsi_confirmation": 0.0,
+                "supertrend_aligned": 0.0,
+                "adx_value": float(row.get("adx", 0.0)) if not pd.isna(row.get("adx", 0.0)) else 0.0,
+                "macd_hist": float(row.get("macd_hist", 0.0)) if not pd.isna(row.get("macd_hist", 0.0)) else 0.0,
+                "bb_position": 0.5,
+                "atr_pct": float(atr_val / row["close"]) if row["close"] else 0.0,
+                "liquidity_sweep_nearby": 0.0,
+                "sr_confluence": 0.0,
+                "n_confluences": 0.0,
+                "risk_reward": float(rr_target),
+                "rule_confidence": 0.0,  # در پایان پر می‌شود
+            }
+
+            if "bb_upper" in df.columns and "bb_lower" in df.columns:
+                bb_upper, bb_lower = row.get("bb_upper"), row.get("bb_lower")
+                if bb_upper is not None and bb_lower is not None and not pd.isna(bb_upper) and not pd.isna(bb_lower) and (bb_upper - bb_lower) != 0:
+                    features["bb_position"] = float((row["close"] - bb_lower) / (bb_upper - bb_lower))
 
             if ctx["trend"] == ("up" if is_bullish else "down"):
                 confidence += 15
                 reasons.append("هم‌راستا با روند غالب ساختار بازار (BOS/CHOCH)")
                 sources.append(SignalSource.BOS if is_bullish else SignalSource.CHOCH)
+                features["trend_aligned"] = 1.0
 
             # همپوشانی با FVG هم‌جهت
             for fz in ctx["fvgs"]:
@@ -89,18 +139,21 @@ class SMCConfluenceStrategy(BaseStrategy):
                     confidence += 15
                     reasons.append("همپوشانی با Fair Value Gap هم‌جهت")
                     sources.append(SignalSource.FVG)
+                    features["fvg_confluence"] = 1.0
+                    features["fvg_strength"] = max(features["fvg_strength"], float(fz.strength))
                     break
 
             # تایید کندلی نزدیک ناحیه
-            row = df.iloc[idx]
             if is_bullish and row.get("pattern_bullish_pin") or row.get("pattern_bullish_engulfing"):
                 confidence += 10
                 reasons.append("تایید الگوی کندلی صعودی")
                 sources.append(SignalSource.CANDLESTICK_PATTERN)
+                features["candle_confirmation"] = 1.0
             if (not is_bullish) and (row.get("pattern_bearish_pin") or row.get("pattern_bearish_engulfing")):
                 confidence += 10
                 reasons.append("تایید الگوی کندلی نزولی")
                 sources.append(SignalSource.CANDLESTICK_PATTERN)
+                features["candle_confirmation"] = 1.0
 
             # فیلتر اندیکاتوری: RSI و SuperTrend
             if "rsi" in df.columns:
@@ -109,10 +162,12 @@ class SMCConfluenceStrategy(BaseStrategy):
                     confidence += 5
                     reasons.append(f"RSI ({rsi_val:.1f}) در ناحیه اشباع فروش/خنثی")
                     sources.append(SignalSource.INDICATOR_CONFLUENCE)
+                    features["rsi_confirmation"] = 1.0
                 if (not is_bullish) and rsi_val > 55:
                     confidence += 5
                     reasons.append(f"RSI ({rsi_val:.1f}) در ناحیه اشباع خرید/خنثی")
                     sources.append(SignalSource.INDICATOR_CONFLUENCE)
+                    features["rsi_confirmation"] = 1.0
 
             if "supertrend_direction" in df.columns:
                 st_dir = row.get("supertrend_direction", 0)
@@ -120,11 +175,36 @@ class SMCConfluenceStrategy(BaseStrategy):
                     confidence += 10
                     reasons.append("جهت SuperTrend هم‌راستا با سیگنال")
                     sources.append(SignalSource.INDICATOR_CONFLUENCE)
+                    features["supertrend_aligned"] = 1.0
+
+            # نزدیکی به Liquidity Sweep هم‌جهت اخیر (طی ۵۰ کندل قبل از سیگنال)
+            for sweep in ctx["sweeps"]:
+                sweep_idx = df[df["time"] == sweep["time"]].index
+                if len(sweep_idx) == 0:
+                    continue
+                si = sweep_idx[0]
+                if 0 <= idx - si <= 50:
+                    if (is_bullish and sweep["type"] == "sweep_low") or ((not is_bullish) and sweep["type"] == "sweep_high"):
+                        features["liquidity_sweep_nearby"] = 1.0
+                        if SignalSource.LIQUIDITY_SWEEP not in sources:
+                            sources.append(SignalSource.LIQUIDITY_SWEEP)
+                            reasons.append("شکار نقدینگی (Liquidity Sweep) هم‌جهت قبل از سیگنال")
+                        break
+
+            # همپوشانی ناحیه با یک سطح حمایت/مقاومت شناخته‌شده
+            for sr in ctx["support_resistance"]:
+                if not (sr.top < zone.bottom or sr.bottom > zone.top):
+                    features["sr_confluence"] = 1.0
+                    if SignalSource.SUPPORT_RESISTANCE not in sources:
+                        sources.append(SignalSource.SUPPORT_RESISTANCE)
+                        reasons.append("همپوشانی با سطح حمایت/مقاومت شناخته‌شده")
+                    break
 
             confidence = min(confidence, 100.0)
+            features["n_confluences"] = float(len(sources))
+            features["rule_confidence"] = float(confidence / 100.0)
 
             entry_price = zone.top if is_bullish else zone.bottom
-            atr_val = row.get("atr", (zone.top - zone.bottom))
             buffer = max(atr_val * 0.2, (zone.top - zone.bottom) * 0.1)
 
             if is_bullish:
@@ -141,7 +221,7 @@ class SMCConfluenceStrategy(BaseStrategy):
             if risk <= 0:
                 continue
 
-            signals.append(Signal(
+            signal = Signal(
                 timestamp=df["time"].iloc[idx],
                 direction=direction,
                 entry_price=round(entry_price, 3),
@@ -150,8 +230,23 @@ class SMCConfluenceStrategy(BaseStrategy):
                 confidence=confidence,
                 sources=sources,
                 reasons=reasons,
-                metadata={"zone_kind": zone.kind, "zone_top": zone.top, "zone_bottom": zone.bottom},
-            ))
+                metadata={"zone_kind": zone.kind, "zone_top": zone.top, "zone_bottom": zone.bottom,
+                          "features": features},
+            )
+
+            if self.scorer is not None:
+                try:
+                    proba = self.scorer.predict_proba_one(feature_dict_to_row(features))
+                    signal.ml_probability = round(float(proba), 4)
+                    signal.reasons.append(
+                        f"امتیاز مدل یادگیری ماشین ({self.scorer.backend_name}): "
+                        f"{signal.ml_probability * 100:.1f}% احتمال رسیدن به TP"
+                    )
+                except Exception:
+                    # اگر مدل روی این ورودی شکست خورد، سیگنال قانون‌محور همچنان معتبر می‌ماند
+                    signal.ml_probability = None
+
+            signals.append(signal)
 
         signals.sort(key=lambda s: s.timestamp)
         return signals

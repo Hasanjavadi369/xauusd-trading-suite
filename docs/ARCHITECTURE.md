@@ -35,16 +35,22 @@
 - `signal_engine.py` (`SMCConfluenceStrategy`): موتور اصلی که خروجی همه‌ی ماژول‌های بالا
   را ترکیب کرده و امتیاز اطمینان (confidence) + Entry/SL/TP/RR تولید می‌کند.
 
-### `src/ml` — لایه یادگیری ماشین (رفتار قیمت)
-- `feature_engineering.py`: ساخت ۲۰ ویژگی عددی از قیمت/اندیکاتورها/کندل‌ها
-- `labeling.py`: برچسب‌گذاری Triple-Barrier بر اساس رفتار واقعی آینده قیمت
-- `model.py`: پوشش scikit-learn (GradientBoosting/RandomForest) + train/predict/save/load
+### `src/ml`
+مدل امتیازدهی سیگنال (Signal Scoring Model) — **نه پیش‌بینی قیمت**:
+- `features.py`: اسکیمای مشترک فیچرها (تنها منبع حقیقت برای نام/ترتیب ستون‌ها،
+  هم در آموزش هم در inference، تا هیچ train/serve skew رخ ندهد).
+- `dataset.py`: ساخت دیتاست برچسب‌خورده با replay walk-forward دقیقاً هم‌ترازِ
+  نحوه‌ی مصرف واقعی سیگنال در `backtest/engine.py` (هر سیگنال از لحظه‌ی تشخیص
+  دنبال می‌شود تا مشخص شود TP زودتر لمس شد یا SL).
+- `scorer.py` (`SignalScorer`): کلاس train/predict/save/load با بک‌اند
+  XGBoost → LightGBM → `HistGradientBoostingClassifier` (سقوط sklearn، همیشه
+  در دسترس)، به‌همراه گزارش اهمیت فیچرها برای تفسیرپذیری.
+- `scripts/train_signal_model.py`: CLI آموزش با تقسیم زمانی train/test و گزارش
+  کامل معیارها.
 
-جزئیات کامل، روش‌شناسی و **محدودیت‌های صادقانه** (ریسک overfitting و...) در `docs/AI_MODEL.md`.
-
-### `src/strategy` (به‌روزرسانی)
-- `ai_strategy.py`: `AIStrategy` (فقط مدل AI) و `EnsembleStrategy` («شبکه ادغامی» SMC + AI،
-  با دو حالت `agreement`/`any`)
+`SMCConfluenceStrategy` می‌تواند یک `SignalScorer` اختیاری بگیرد؛ اگر داده شود،
+هر `Signal` علاوه بر `confidence` قانون‌محور، یک `ml_probability` هم می‌گیرد.
+بدون آن، رفتار موتور دقیقاً مثل قبل (فقط قانون‌محور) است.
 
 ### `src/risk_management`
 - `position_sizing.py`: محاسبه حجم لات بر اساس درصد ریسک.
@@ -74,8 +80,11 @@
    `calculator.compute_all_indicators` فراخوانی کنید.
 2. **استراتژی جدید**: کلاسی از `BaseStrategy` بسازید و `prepare()` / `generate_signals()`
    را پیاده‌سازی کنید؛ خروجی باید لیستی از `Signal` باشد تا با بک‌تست/اجرای زنده سازگار بماند.
-3. **مدل هوش مصنوعی آینده**: می‌تواند به‌صورت یک `BaseStrategy` دیگر پیاده شود که
-   ویژگی‌های (features) محاسبه‌شده توسط `indicators` و `smc` را به‌عنوان ورودی مدل استفاده کند.
+3. **مدل هوش مصنوعی آینده**: `src/ml` دقیقاً همین الگو را برای امتیازدهی سیگنال
+   (نه پیش‌بینی قیمت) پیاده کرده — ویژگی‌های محاسبه‌شده توسط `indicators` و `smc`
+   به‌عنوان ورودی یک classifier استفاده می‌شوند؛ برای مدل‌های AI بعدی (مثلاً
+   regression روی اندازه‌ی حرکت، یا یک استراتژی کاملاً یادگیری‌محور) همین الگوی
+   جداسازی «فیچر مشترک ↔ مدل قابل‌جایگزین» قابل استفاده مجدد است.
 
 ## محدودیت‌های شناخته‌شده (نسخه فعلی)
 

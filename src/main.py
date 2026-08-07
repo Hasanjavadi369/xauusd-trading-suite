@@ -7,8 +7,8 @@
   3) live     : اتصال زنده به MT5، دریافت آخرین سیگنال و (اختیاری) ارسال معامله
 
 مثال‌ها:
-    python -m src.main --mode backtest --csv data/xauusd_real.csv  # با scripts/fetch_real_data.py بسازید
-    python -m src.main --mode chart --csv data/xauusd_real.csv  # با scripts/fetch_real_data.py بسازید
+    python -m src.main --mode backtest --csv data/XAUUSD_H1_real.csv
+    python -m src.main --mode chart --csv data/XAUUSD_H1_real.csv
     python -m src.main --mode live --send-orders False
 """
 from __future__ import annotations
@@ -37,12 +37,52 @@ def load_csv(path: str) -> pd.DataFrame:
     return df.sort_values("time").reset_index(drop=True)
 
 
+def load_scorer_if_enabled(config: dict):
+    """اگر ml.enabled=true و فایل مدل موجود باشد، یک Scorer بارگذاری‌شده برمی‌گرداند؛ وگرنه None.
+
+    هم فایل‌های EnsembleSignalScorer (پیش‌فرض جدید، چند مدل ترکیبی) و هم فایل‌های
+    قدیمی‌تر SignalScorer (تک‌بک‌اند) را تشخیص می‌دهد.
+
+    خطاها (مدل train نشده، فایل خراب، ...) هرگز کل اجرای backtest/live را متوقف
+    نمی‌کنند — فقط هشدار می‌دهند و استراتژی بدون امتیاز ML (فقط قانون‌محور) ادامه می‌دهد.
+    """
+    ml_cfg = config.get("ml", {})
+    if not ml_cfg.get("enabled", False):
+        return None
+
+    from pathlib import Path
+    model_path = ml_cfg.get("model_path", "models/signal_scorer_ensemble.joblib")
+    if not Path(model_path).exists():
+        logger.warning(f"ml.enabled=true اما فایل مدل پیدا نشد: {model_path} — "
+                        f"ابتدا با scripts/train_signal_model.py یک مدل train کنید. "
+                        f"ادامه بدون امتیاز ML.")
+        return None
+
+    from src.ml.ensemble import EnsembleSignalScorer
+    from src.ml.scorer import SignalScorer
+    try:
+        scorer = EnsembleSignalScorer.load(model_path)
+        logger.info(f"موتور Ensemble بارگذاری شد: {model_path} ({scorer.backend_name})")
+        return scorer
+    except (TypeError, Exception):
+        pass
+    try:
+        scorer = SignalScorer.load(model_path)
+        logger.info(f"مدل امتیازدهی سیگنال بارگذاری شد: {model_path} (backend={scorer.backend_name})")
+        return scorer
+    except Exception as e:
+        logger.warning(f"بارگذاری مدل ML شکست خورد ({e}) — ادامه بدون امتیاز ML.")
+        return None
+
+
 def run_backtest(csv_path: str, config: dict) -> None:
     df = load_csv(csv_path)
     df = compute_all_indicators(df, config)
 
-    strategy = SMCConfluenceStrategy(config)
+    scorer = load_scorer_if_enabled(config)
+    strategy = SMCConfluenceStrategy(config, scorer=scorer)
     df = strategy.prepare(df)
+    min_probability = config.get("ml", {}).get("min_probability", 0.0) if scorer else 0.0
 
     risk_cfg = config.get("risk", {})
     backtest_cfg = BacktestConfig(
@@ -69,7 +109,11 @@ def run_backtest(csv_path: str, config: dict) -> None:
 
     def signal_fn(window: pd.DataFrame):
         recent = window.iloc[-lookback_window:] if len(window) > lookback_window else window
-        return strategy.generate_latest_signal(recent)
+        signal = strategy.generate_latest_signal(recent)
+        if signal is not None and min_probability > 0 and signal.ml_probability is not None:
+            if signal.ml_probability < min_probability:
+                return None
+        return signal
 
     engine = BacktestEngine(backtest_cfg)
     report = engine.run(df, signal_fn, atr_series=df["atr"], signal_check_interval=check_interval)
@@ -84,7 +128,8 @@ def run_chart(csv_path: str, config: dict) -> None:
 
     df = load_csv(csv_path)
     df = compute_all_indicators(df, config)
-    strategy = SMCConfluenceStrategy(config)
+    scorer = load_scorer_if_enabled(config)
+    strategy = SMCConfluenceStrategy(config, scorer=scorer)
     df = strategy.prepare(df)
     ctx = strategy._build_context(df)
 
@@ -118,7 +163,8 @@ def run_live(config: dict, send_orders: bool = False) -> None:
         df = df.reset_index().rename(columns={"datetime": "time"})
         df = compute_all_indicators(df, config)
 
-        strategy = SMCConfluenceStrategy(config)
+        scorer = load_scorer_if_enabled(config)
+        strategy = SMCConfluenceStrategy(config, scorer=scorer)
         df = strategy.prepare(df)
         signal = strategy.generate_latest_signal(df)
 
@@ -126,9 +172,17 @@ def run_live(config: dict, send_orders: bool = False) -> None:
             logger.info("سیگنال معتبری در این لحظه یافت نشد.")
             return
 
+        min_probability = config.get("ml", {}).get("min_probability", 0.0)
+        if scorer and min_probability > 0 and signal.ml_probability is not None \
+                and signal.ml_probability < min_probability:
+            logger.info(f"سیگنال یافت شد اما امتیاز مدل ({signal.ml_probability:.2f}) "
+                        f"کمتر از آستانه‌ی ml.min_probability ({min_probability}) است؛ نادیده گرفته شد.")
+            return
+
+        ml_part = f" | ML={signal.ml_probability:.2f}" if signal.ml_probability is not None else ""
         logger.info(f"سیگنال جدید: {signal.direction} | Entry={signal.entry_price} "
                     f"SL={signal.stop_loss} TP={signal.take_profit} R/R={signal.risk_reward} "
-                    f"Confidence={signal.confidence}")
+                    f"Confidence={signal.confidence}{ml_part}")
         for r in signal.reasons:
             logger.info(f"  - {r}")
 
