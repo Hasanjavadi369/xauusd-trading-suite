@@ -69,6 +69,7 @@ class Trade:
     break_even_applied: bool = False
     trailing_stop_active: bool = False
     tags: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def unrealized_pnl(self, current_price: float, pip_value: float = 1.0) -> float:
         direction_mult = 1 if self.direction == TradeDirection.LONG else -1

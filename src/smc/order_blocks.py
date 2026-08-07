@@ -10,7 +10,7 @@ import pandas as pd
 from ..core.data_models import Zone
 
 
-def detect_order_blocks(df: pd.DataFrame, lookback: int = 20, impulse_atr_mult: float = 1.5) -> List[Zone]:
+def detect_order_blocks(df: pd.DataFrame, lookback: int = 20, impulse_atr_mult: float = 1.0) -> List[Zone]:
     zones: List[Zone] = []
     if "atr" not in df.columns:
         raise ValueError("دیتافریم باید ستون 'atr' داشته باشد (از calculator.compute_all_indicators استفاده کنید)")
@@ -65,6 +65,12 @@ def mark_mitigated_zones(zones: List[Zone], df: pd.DataFrame) -> None:
             continue
         start_search = end_idx[0] + 1
         for i in range(start_search, len(df)):
-            if df["low"].iloc[i] <= zone.top and df["high"].iloc[i] >= zone.bottom:
+            close = float(df["close"].iloc[i])
+            # A simple touch/retest is not automatically a mitigation.  Mark the
+            # block invalid only when price closes decisively through its far edge.
+            if zone.kind == "order_block_bullish" and close < zone.bottom:
+                zone.mitigated = True
+                break
+            if zone.kind == "order_block_bearish" and close > zone.top:
                 zone.mitigated = True
                 break

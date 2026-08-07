@@ -163,9 +163,23 @@ class MT5Connector:
     # ------------------------------------------------------------------ #
     # ارسال / مدیریت سفارش
     # ------------------------------------------------------------------ #
+    def _normalize_price(self, price: Optional[float]) -> Optional[float]:
+        if price is None or mt5 is None:
+            return price
+        info = mt5.symbol_info(self.symbol)
+        digits = int(getattr(info, "digits", 2)) if info else 2
+        return round(float(price), digits)
+
+    def _broker_min_distance(self) -> float:
+        info = mt5.symbol_info(self.symbol)
+        if not info:
+            return 0.0
+        points = max(int(getattr(info, "trade_stops_level", 0) or 0), int(getattr(info, "trade_freeze_level", 0) or 0))
+        return points * float(getattr(info, "point", 0.01) or 0.01)
+
     def send_market_order(
         self,
-        direction: str,          # "BUY" یا "SELL"
+        direction: str,
         volume: float,
         stop_loss: Optional[float] = None,
         take_profit: Optional[float] = None,
@@ -177,25 +191,40 @@ class MT5Connector:
             raise RuntimeError("MetaTrader5 در دسترس نیست.")
 
         tick = mt5.symbol_info_tick(self.symbol)
-        order_type = mt5.ORDER_TYPE_BUY if direction.upper() == "BUY" else mt5.ORDER_TYPE_SELL
-        price = tick.ask if direction.upper() == "BUY" else tick.bid
+        if tick is None:
+            raise RuntimeError(f"قیمت لحظه‌ای {self.symbol} در دسترس نیست: {mt5.last_error()}")
+        is_buy = direction.upper() == "BUY"
+        order_type = mt5.ORDER_TYPE_BUY if is_buy else mt5.ORDER_TYPE_SELL
+        price = float(tick.ask if is_buy else tick.bid)
+        min_dist = self._broker_min_distance()
+
+        if is_buy:
+            if stop_loss is not None and stop_loss >= price - min_dist:
+                raise ValueError("SL برای BUY باید پایین‌تر از Ask و حداقل به فاصله مجاز بروکر باشد.")
+            if take_profit is not None and take_profit <= price + min_dist:
+                raise ValueError("TP برای BUY باید بالاتر از Ask و حداقل به فاصله مجاز بروکر باشد.")
+        else:
+            if stop_loss is not None and stop_loss <= price + min_dist:
+                raise ValueError("SL برای SELL باید بالاتر از Bid و حداقل به فاصله مجاز بروکر باشد.")
+            if take_profit is not None and take_profit >= price - min_dist:
+                raise ValueError("TP برای SELL باید پایین‌تر از Bid و حداقل به فاصله مجاز بروکر باشد.")
 
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": self.symbol,
-            "volume": volume,
+            "volume": float(volume),
             "type": order_type,
-            "price": price,
+            "price": self._normalize_price(price),
             "deviation": deviation,
             "magic": magic,
             "comment": comment,
             "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": mt5.ORDER_FILLING_IOC,
         }
-        if stop_loss:
-            request["sl"] = stop_loss
-        if take_profit:
-            request["tp"] = take_profit
+        if stop_loss is not None:
+            request["sl"] = self._normalize_price(stop_loss)
+        if take_profit is not None:
+            request["tp"] = self._normalize_price(take_profit)
 
         result = mt5.order_send(request)
         if result is None or result.retcode != mt5.TRADE_RETCODE_DONE:

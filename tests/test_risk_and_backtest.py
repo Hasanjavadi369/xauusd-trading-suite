@@ -75,3 +75,33 @@ def test_compute_performance_win_rate_and_profit_factor():
     assert report.win_rate == 50.0
     assert report.net_profit == 220
     assert report.profit_factor == round(300 / 80, 2)
+
+
+def test_trade_levels_are_consistent_with_market_entry_long():
+    from src.risk_management.levels import build_levels, validate_levels
+    levels = build_levels(TradeDirection.LONG, 2400.0, 10.0, 2395.0, 2388.0, rr_target=2.5)
+    assert levels is not None
+    assert levels.stop_loss < levels.entry < levels.take_profit
+    assert round((levels.take_profit - levels.entry) / (levels.entry - levels.stop_loss), 2) == 2.5
+    assert validate_levels(TradeDirection.LONG, levels.entry, levels.stop_loss, levels.take_profit)
+
+
+def test_trade_levels_are_consistent_with_market_entry_short():
+    from src.risk_management.levels import build_levels, validate_levels
+    levels = build_levels(TradeDirection.SHORT, 2400.0, 10.0, 2412.0, 2405.0, rr_target=2.0)
+    assert levels is not None
+    assert levels.take_profit < levels.entry < levels.stop_loss
+    assert round((levels.entry - levels.take_profit) / (levels.stop_loss - levels.entry), 2) == 2.0
+    assert validate_levels(TradeDirection.SHORT, levels.entry, levels.stop_loss, levels.take_profit)
+
+
+def test_structural_target_caps_to_nearest_valid_long_resistance():
+    from src.risk_management.levels import select_structural_target
+    tp = select_structural_target(TradeDirection.LONG, 2000.0, 10.0, 2.0, [2015.0, 2025.0, 2050.0])
+    assert tp == 2025.0
+
+
+def test_structural_target_caps_to_nearest_valid_short_support():
+    from src.risk_management.levels import select_structural_target
+    tp = select_structural_target(TradeDirection.SHORT, 2000.0, 10.0, 2.0, [1985.0, 1975.0, 1950.0])
+    assert tp == 1975.0

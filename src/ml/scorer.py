@@ -107,7 +107,7 @@ class SignalScorer:
         self.model.fit(X, y)
 
         import datetime as _dt
-        self.trained_at = _dt.datetime.utcnow().isoformat()
+        self.trained_at = _dt.datetime.now(_dt.UTC).isoformat()
 
         importances = getattr(self.model, "feature_importances_", None)
         if importances is None:

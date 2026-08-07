@@ -229,7 +229,7 @@ class EnsembleSignalScorer:
             m.weight = float(w)
 
         # معیارهای کلی روی همان برش نگه‌داشته‌شده (برای گزارش، نه انتخاب مدل)
-        self.trained_at = _dt.datetime.utcnow().isoformat()
+        self.trained_at = _dt.datetime.now(_dt.UTC).isoformat()
         if n_val > 0 and y.iloc[n_train:].nunique() > 1:
             ensemble_val_proba = self._weighted_proba(X.iloc[n_train:])
             try:

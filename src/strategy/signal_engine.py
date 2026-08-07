@@ -23,6 +23,7 @@ from ..smc import structure, order_blocks, fvg as fvg_mod, liquidity, supply_dem
 from ..price_action import candlestick_patterns, support_resistance
 from .base_strategy import BaseStrategy
 from ..ml.features import feature_dict_to_row
+from ..risk_management.levels import build_levels, validate_levels, select_structural_target
 
 if TYPE_CHECKING:
     from ..ml.scorer import SignalScorer
@@ -144,7 +145,7 @@ class SMCConfluenceStrategy(BaseStrategy):
                     break
 
             # تایید کندلی نزدیک ناحیه
-            if is_bullish and row.get("pattern_bullish_pin") or row.get("pattern_bullish_engulfing"):
+            if is_bullish and (row.get("pattern_bullish_pin") or row.get("pattern_bullish_engulfing")):
                 confidence += 10
                 reasons.append("تایید الگوی کندلی صعودی")
                 sources.append(SignalSource.CANDLESTICK_PATTERN)
@@ -204,21 +205,43 @@ class SMCConfluenceStrategy(BaseStrategy):
             features["n_confluences"] = float(len(sources))
             features["rule_confidence"] = float(confidence / 100.0)
 
-            entry_price = zone.top if is_bullish else zone.bottom
-            buffer = max(atr_val * 0.2, (zone.top - zone.bottom) * 0.1)
+            # Entry is the latest closed market price. Previously the engine used
+            # the OB edge as entry, which made displayed/executed TP/SL inconsistent
+            # whenever price had already moved away from the zone.
+            entry_price = float(row["close"])
+            direction = TradeDirection.LONG if is_bullish else TradeDirection.SHORT
+            levels = build_levels(
+                direction=direction,
+                entry_price=entry_price,
+                atr=float(atr_val),
+                zone_top=float(zone.top),
+                zone_bottom=float(zone.bottom),
+                rr_target=float(rr_target),
+                atr_buffer_mult=float(self.config.get("risk", {}).get("sl_atr_buffer_mult", 0.20)),
+                zone_buffer_pct=float(self.config.get("risk", {}).get("sl_zone_buffer_pct", 0.10)),
+                min_risk_atr_mult=float(self.config.get("risk", {}).get("min_risk_atr_mult", 0.50)),
+            )
+            if levels is None or not validate_levels(direction, levels.entry, levels.stop_loss, levels.take_profit):
+                continue
+            stop_loss = levels.stop_loss
+            risk = levels.risk_distance
 
-            if is_bullish:
-                stop_loss = zone.bottom - buffer
-                risk = entry_price - stop_loss
-                take_profit = entry_price + risk * rr_target
-                direction = TradeDirection.LONG
-            else:
-                stop_loss = zone.top + buffer
-                risk = stop_loss - entry_price
-                take_profit = entry_price - risk * rr_target
-                direction = TradeDirection.SHORT
+            # TP is not allowed to blindly cross the nearest meaningful opposing
+            # structure. We first collect candidate resistance/support levels
+            # that are already known from the current, fully closed window.
+            target_candidates = []
+            for other in ctx["order_blocks"]:
+                if other is zone or other.mitigated:
+                    continue
+                target_candidates.append(float(other.bottom if is_bullish else other.top))
+            for sr in ctx["support_resistance"]:
+                target_candidates.append(float(sr.bottom if is_bullish else sr.top))
 
-            if risk <= 0:
+            take_profit = select_structural_target(
+                direction=direction, entry=entry_price, risk_distance=risk,
+                rr_target=float(rr_target), candidates=target_candidates,
+            )
+            if not validate_levels(direction, entry_price, stop_loss, take_profit):
                 continue
 
             signal = Signal(
@@ -231,7 +254,8 @@ class SMCConfluenceStrategy(BaseStrategy):
                 sources=sources,
                 reasons=reasons,
                 metadata={"zone_kind": zone.kind, "zone_top": zone.top, "zone_bottom": zone.bottom,
-                          "features": features},
+                          "features": features, "level_engine": "structure_atr_v2",
+                          "risk_distance": risk, "rr_target": rr_target, "tp_engine": "nearest_structure_with_min_rr"},
             )
 
             if self.scorer is not None:

@@ -15,6 +15,9 @@ risk:
   max_drawdown_pct: 20.0
   max_open_trades: 3
   reward_risk_ratio: 2.0
+  sl_atr_buffer_mult: 0.20
+  sl_zone_buffer_pct: 0.10
+  min_risk_atr_mult: 0.50
   use_trailing_stop: true
   trailing_stop_atr_mult: 1.5
   use_break_even: true
