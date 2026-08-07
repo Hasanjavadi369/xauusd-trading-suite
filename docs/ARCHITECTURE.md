@@ -35,6 +35,17 @@
 - `signal_engine.py` (`SMCConfluenceStrategy`): موتور اصلی که خروجی همه‌ی ماژول‌های بالا
   را ترکیب کرده و امتیاز اطمینان (confidence) + Entry/SL/TP/RR تولید می‌کند.
 
+### `src/ml` — لایه یادگیری ماشین (رفتار قیمت)
+- `feature_engineering.py`: ساخت ۲۰ ویژگی عددی از قیمت/اندیکاتورها/کندل‌ها
+- `labeling.py`: برچسب‌گذاری Triple-Barrier بر اساس رفتار واقعی آینده قیمت
+- `model.py`: پوشش scikit-learn (GradientBoosting/RandomForest) + train/predict/save/load
+
+جزئیات کامل، روش‌شناسی و **محدودیت‌های صادقانه** (ریسک overfitting و...) در `docs/AI_MODEL.md`.
+
+### `src/strategy` (به‌روزرسانی)
+- `ai_strategy.py`: `AIStrategy` (فقط مدل AI) و `EnsembleStrategy` («شبکه ادغامی» SMC + AI،
+  با دو حالت `agreement`/`any`)
+
 ### `src/risk_management`
 - `position_sizing.py`: محاسبه حجم لات بر اساس درصد ریسک.
 - `trade_manager.py`: Break Even، Trailing Stop، و آستانه‌های توقف روزانه/Max Drawdown.

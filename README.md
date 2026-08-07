@@ -12,6 +12,8 @@
   - Smart Money Concept (SMC) / ICT: Order Blocks, Fair Value Gaps (FVG), Liquidity, BOS, CHOCH, Supply & Demand
   - Price Action: الگوهای کندلی، حمایت/مقاومت
   - اندیکاتورهای کلاسیک: EMA, SMA, RSI, MACD, ATR, VWAP, ADX, Bollinger Bands, SuperTrend, Ichimoku, Fibonacci
+- **لایه یادگیری ماشین** که مستقیماً از رفتار تاریخی قیمت یاد می‌گیرد (بدون تکیه به قوانین
+  از پیش تعریف‌شده)، و قابل ترکیب با موتور SMC در یک «موتور ادغامی» — جزئیات: `docs/AI_MODEL.md`
 - پیشنهاد خودکار Entry / Stop Loss / Take Profit / Risk-Reward
 - مدیریت سرمایه و ریسک: حجم معامله خودکار بر اساس درصد ریسک، Trailing Stop، Break Even، Max Drawdown
 - موتور بک‌تست و بهینه‌سازی روی داده‌های تاریخی MT5 با معیارهای Win Rate، Profit Factor، Sharpe Ratio، Max Drawdown، Equity Curve

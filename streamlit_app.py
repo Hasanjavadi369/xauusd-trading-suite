@@ -23,11 +23,18 @@ import yaml
 
 from src.indicators.calculator import compute_all_indicators
 from src.strategy.signal_engine import SMCConfluenceStrategy
+from src.strategy.ai_strategy import AIStrategy, EnsembleStrategy
 from src.backtest.engine import BacktestEngine, BacktestConfig
 from src.risk_management.position_sizing import SymbolSpec
 from src.risk_management.trade_manager import RiskConfig
 from src.chart.chart_app import build_figure
 from src.connectors.twelvedata_connector import fetch_time_series, TwelveDataError
+from src.price_action.candlestick_patterns import detect_all_patterns
+from src.ml.feature_engineering import build_features, clean_features_labels
+from src.ml.labeling import triple_barrier_labels, label_distribution
+from src.ml.model import MLSignalModel
+
+MODEL_PATH = "models/xauusd_model.joblib"
 
 st.set_page_config(page_title="XAUUSD Trading Suite", layout="wide", page_icon="📈")
 
@@ -101,6 +108,22 @@ swing_lookback = st.sidebar.slider("Swing Lookback", 2, 10, 5)
 order_block_lookback = st.sidebar.slider("Order Block Lookback", 5, 50, 20)
 fvg_min_gap_pct = st.sidebar.slider("حداقل درصد شکاف FVG", 0.0, 0.2, 0.02, step=0.01)
 
+st.sidebar.markdown("---")
+st.sidebar.subheader("موتور تحلیل")
+strategy_mode = st.sidebar.radio(
+    "کدام موتور سیگنال بدهد؟",
+    ["SMC/ICT (قانون‌محور)", "هوش مصنوعی (یادگیری ماشین)", "ادغامی (SMC + AI)"],
+    index=0,
+)
+ai_min_confidence = None
+ensemble_agree_mode = "agreement"
+if strategy_mode != "SMC/ICT (قانون‌محور)":
+    ai_min_confidence = st.sidebar.slider("حداقل اطمینان مدل AI (%)", 40, 90, 60, step=5)
+    if strategy_mode == "ادغامی (SMC + AI)":
+        ensemble_agree_mode = st.sidebar.selectbox(
+            "حالت ادغام", ["agreement (فقط تایید دوسویه)", "any (هرکدام)"], index=0,
+        ).split(" ")[0]
+
 run_backtest_btn = st.sidebar.button("🚀 اجرای بک‌تست", use_container_width=True)
 
 # ---------------------------------------------------------------------- #
@@ -113,6 +136,8 @@ config["risk"]["reward_risk_ratio"] = rr_target
 config["smc"]["swing_lookback"] = swing_lookback
 config["smc"]["order_block_lookback"] = order_block_lookback
 config["smc"]["fvg_min_gap_pct"] = fvg_min_gap_pct
+if ai_min_confidence is not None:
+    config.setdefault("ai", {})["min_confidence_pct"] = ai_min_confidence
 
 def get_twelvedata_key() -> str | None:
     """کلید را ابتدا از Streamlit Secrets و سپس از متغیر محیطی می‌خواند؛ هرگز hardcode نمی‌شود."""
@@ -158,7 +183,76 @@ else:
     st.sidebar.info("از داده نمونه (شبیه‌سازی‌شده) استفاده می‌شود.")
 
 df = compute_all_indicators(df_raw, config)
-strategy = SMCConfluenceStrategy(config)
+
+# ------------------------------------------------------------------ #
+# ساخت موتور تحلیل بر اساس انتخاب کاربر (SMC / AI / ادغامی)
+# ------------------------------------------------------------------ #
+def load_or_get_model() -> MLSignalModel | None:
+    if "ml_model" in st.session_state:
+        return st.session_state["ml_model"]
+    if os.path.exists(MODEL_PATH):
+        model = MLSignalModel.load(MODEL_PATH)
+        st.session_state["ml_model"] = model
+        return model
+    return None
+
+
+if strategy_mode != "SMC/ICT (قانون‌محور)":
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("مدل یادگیری ماشین")
+    model = load_or_get_model()
+    if model is not None:
+        st.sidebar.success("مدل آماده (از قبل آموزش‌دیده یا در جلسه فعلی آموزش داده شده) ✅")
+    else:
+        st.sidebar.warning("هنوز مدلی آموزش داده نشده.")
+
+    if st.sidebar.button("🧠 آموزش مدل روی داده فعلی", use_container_width=True):
+        with st.spinner("در حال آموزش مدل روی داده فعلی (ممکن است چند ثانیه طول بکشد)..."):
+            df_train = detect_all_patterns(df)
+            ai_cfg = config.get("ai", {})
+            labels = triple_barrier_labels(
+                df_train, df_train["atr"],
+                tp_atr_mult=ai_cfg.get("tp_atr_mult", 2.0),
+                sl_atr_mult=ai_cfg.get("sl_atr_mult", 1.0),
+                max_horizon_bars=ai_cfg.get("max_horizon_bars", 20),
+            )
+            dist = label_distribution(labels)
+            features = build_features(df_train)
+            X, y = clean_features_labels(features, labels)
+
+            new_model = MLSignalModel(model_type=ai_cfg.get("model_type", "gradient_boosting"))
+            report = new_model.train(X, y, test_size=ai_cfg.get("test_size", 0.2))
+            st.session_state["ml_model"] = new_model
+            st.session_state["ml_report"] = report
+            st.session_state["ml_label_dist"] = dist
+        model = new_model
+        st.sidebar.success(
+            f"آموزش تمام شد — دقت تست: {report.test_accuracy * 100:.1f}% "
+            f"({report.n_train} نمونه آموزش / {report.n_test} نمونه تست)"
+        )
+
+    if "ml_report" in st.session_state:
+        with st.sidebar.expander("جزئیات آخرین آموزش مدل"):
+            r = st.session_state["ml_report"]
+            d = st.session_state.get("ml_label_dist", {})
+            st.write(f"توزیع برچسب‌ها: صعودی {d.get('bullish_pct','?')}% / "
+                     f"نزولی {d.get('bearish_pct','?')}% / خنثی {d.get('neutral_pct','?')}%")
+            st.write(f"دقت آموزش: {r.train_accuracy*100:.1f}% | دقت تست: {r.test_accuracy*100:.1f}%")
+            st.caption("⚠️ اختلاف زیاد بین دقت آموزش و تست یعنی مدل overfit شده — "
+                       "با داده تاریخی بیشتر و واقعی‌تر (نه داده نمونه شبیه‌سازی‌شده) بهبود می‌یابد.")
+
+    if model is None:
+        st.warning("برای استفاده از موتور AI/ادغامی، ابتدا از نوار کناری روی "
+                   "«آموزش مدل روی داده فعلی» بزنید.")
+        st.stop()
+
+if strategy_mode == "SMC/ICT (قانون‌محور)":
+    strategy = SMCConfluenceStrategy(config)
+elif strategy_mode == "هوش مصنوعی (یادگیری ماشین)":
+    strategy = AIStrategy(config, model)
+else:
+    strategy = EnsembleStrategy(config, model, mode=ensemble_agree_mode)
+
 df = strategy.prepare(df)
 
 # ---------------------------------------------------------------------- #
@@ -190,8 +284,12 @@ else:
 # ---------------------------------------------------------------------- #
 st.subheader("چارت تحلیلی")
 chart_df = df.iloc[-n_bars_display:].reset_index(drop=True)
-ctx = strategy._build_context(chart_df)
-zones = ctx["order_blocks"] + ctx["fvgs"]
+
+zones = []
+smc_source = getattr(strategy, "smc", strategy if hasattr(strategy, "_build_context") else None)
+if smc_source is not None:
+    ctx = smc_source._build_context(chart_df)
+    zones = ctx["order_blocks"] + ctx["fvgs"]
 
 overlays = {
     "EMA20": chart_df.get("ema_20"), "EMA50": chart_df.get("ema_50"),
@@ -254,4 +352,5 @@ if run_backtest_btn:
 
 st.markdown("---")
 st.caption("⚠️ این نرم‌افزار صرفاً ابزار تحلیلی/آموزشی است و توصیه مالی محسوب نمی‌شود. "
-           "اتصال زنده به MT5 روی این داشبورد ابری فعال نیست (فقط ویندوز).")
+           "اتصال زنده به MT5 روی این داشبورد ابری فعال نیست (فقط ویندوز). "
+           "موتور هوش مصنوعی احتمال آماری بر پایه‌ی الگوهای گذشته می‌دهد، نه پیش‌بینی قطعی — جزئیات: docs/AI_MODEL.md")

@@ -42,3 +42,11 @@ backtest:
   commission_per_lot: 0.0
   spread_points: 20
   slippage_points: 5
+
+ai:
+  model_type: "gradient_boosting"   # یا "random_forest"
+  tp_atr_mult: 2.0                   # سطح فرضی TP برای برچسب‌گذاری Triple-Barrier
+  sl_atr_mult: 1.0                   # سطح فرضی SL برای برچسب‌گذاری Triple-Barrier
+  max_horizon_bars: 20               # افق زمانی بررسی برخورد به سقف/کف
+  min_confidence_pct: 60.0           # حداقل احتمال مدل برای صدور سیگنال
+  test_size: 0.2                     # نسبت داده تست (بخش انتهایی/جدیدتر سری زمانی)
