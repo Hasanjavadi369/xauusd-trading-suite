@@ -1,0 +1,55 @@
+# تنظیمات کلی نرم‌افزار XAUUSD Trading Suite
+
+symbol: "XAUUSD"
+timeframe: "H1"          # M1, M5, M15, M30, H1, H4, D1
+mt5:
+  login: 0                # login شماره حساب MT5 (روی ویندوز پر شود)
+  password: ""
+  server: ""
+  terminal_path: ""       # مسیر terminal64.exe (اختیاری)
+
+risk:
+  account_balance: 10000
+  risk_per_trade_pct: 1.0     # درصد ریسک هر معامله از موجودی
+  max_daily_risk_pct: 3.0
+  max_drawdown_pct: 20.0
+  max_open_trades: 3
+  reward_risk_ratio: 2.0
+  sl_atr_buffer_mult: 0.20
+  sl_zone_buffer_pct: 0.10
+  min_risk_atr_mult: 0.50
+  use_trailing_stop: true
+  trailing_stop_atr_mult: 1.5
+  use_break_even: true
+  break_even_trigger_rr: 1.0   # وقتی سود به ۱ برابر ریسک رسید، SL به Break Even منتقل شود
+
+indicators:
+  ema_periods: [20, 50, 200]
+  sma_periods: [50, 200]
+  rsi_period: 14
+  macd: {fast: 12, slow: 26, signal: 9}
+  atr_period: 14
+  bollinger: {period: 20, std: 2}
+  adx_period: 14
+  supertrend: {period: 10, multiplier: 3}
+  ichimoku: {tenkan: 9, kijun: 26, senkou_b: 52}
+
+smc:
+  swing_lookback: 5          # تعداد کندل چپ/راست برای تشخیص Swing High/Low
+  fvg_min_gap_pct: 0.02       # حداقل فاصله برای شناسایی FVG معتبر (درصد قیمت)
+  order_block_lookback: 20
+  liquidity_equal_tolerance_pct: 0.03
+
+backtest:
+  initial_balance: 10000
+  commission_per_lot: 0.0
+  spread_points: 20
+  slippage_points: 5
+
+ml:
+  enabled: false                     # اگر true باشد و model_path موجود باشد، امتیاز مدل به سیگنال‌ها اضافه می‌شود
+  model_path: "models/signal_scorer_ensemble.joblib"   # موتور Ensemble (پیش‌فرض) یا فایل SignalScorer قدیمی
+  min_probability: 0.0                # اگر > 0 باشد، سیگنال‌هایی با ml_probability کمتر از این مقدار در بک‌تست/زنده فیلتر می‌شوند
+  continuous_learning:
+    enabled: true                     # ثبت نتایج معاملات واقعی (بک‌تست/دمو) در models/training_log.csv
+    min_samples_to_retrain: 30        # حداقل نمونه‌ی جدید لازم برای بازآموزی معنادار

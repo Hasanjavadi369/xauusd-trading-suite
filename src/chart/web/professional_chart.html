@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>__SYMBOL__ — چارت حرفه‌ای</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root{
+    --bg:#0e1117; --panel:#14161b; --panel-2:#181b22; --border:rgba(255,255,255,0.08);
+    --text:#e6e6e6; --text-dim:#9aa0a6; --accent:#f5a623; --up:#26a69a; --down:#ef5350;
+    --tool-active:rgba(245,166,35,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:'Vazirmatn','Segoe UI',Tahoma,sans-serif;overflow:hidden;user-select:none;}
+  #gts-root{display:flex;flex-direction:column;height:__HEIGHT__px;border:1px solid var(--border);
+    border-radius:10px;overflow:hidden;background:var(--bg);}
+
+  /* ---------- Top Toolbar ---------- */
+  #gts-topbar{display:flex;align-items:center;justify-content:space-between;
+    background:var(--panel);border-bottom:1px solid var(--border);padding:0 14px;height:46px;flex:0 0 auto;}
+  .gts-topbar-left{display:flex;align-items:center;gap:14px;}
+  .gts-symbol{font-weight:800;font-size:15px;letter-spacing:0.5px;}
+  .gts-price{font-weight:800;font-size:15px;direction:ltr;color:var(--accent);}
+  .gts-change{font-size:12px;font-weight:700;direction:ltr;padding:2px 6px;border-radius:5px;}
+  .gts-change.up{color:var(--up);background:rgba(38,166,154,0.12);}
+  .gts-change.down{color:var(--down);background:rgba(239,83,80,0.12);}
+  .gts-tf-group{display:flex;gap:2px;background:var(--panel-2);border-radius:8px;padding:3px;}
+  .gts-tf-btn{border:none;background:transparent;color:var(--text-dim);font-size:11.5px;font-weight:700;
+    padding:5px 9px;border-radius:6px;cursor:pointer;}
+  .gts-tf-btn.active{background:var(--accent);color:#1a1200;}
+  .gts-tf-btn:hover:not(.active){color:var(--text);background:rgba(255,255,255,0.06);}
+  .gts-topbar-right{display:flex;align-items:center;gap:6px;}
+  .gts-icon-btn{width:30px;height:30px;border:none;background:transparent;color:var(--text-dim);
+    border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .gts-icon-btn:hover{background:rgba(255,255,255,0.08);color:var(--text);}
+
+  /* ---------- Body layout ---------- */
+  #gts-body{display:flex;flex:1 1 auto;min-height:0;}
+  #gts-drawtoolbar{flex:0 0 44px;background:var(--panel);border-left:1px solid var(--border);
+    display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:3px;}
+  .gts-tool{width:32px;height:32px;border:none;background:transparent;color:var(--text-dim);
+    border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;
+    position:relative;}
+  .gts-tool:hover{background:rgba(255,255,255,0.08);color:var(--text);}
+  .gts-tool.active{background:var(--tool-active);color:var(--accent);}
+  .gts-tool-sep{width:20px;height:1px;background:var(--border);margin:4px 0;}
+
+  #gts-center{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;}
+  #gts-chart-wrap{position:relative;flex:1 1 auto;min-height:0;}
+  #gts-chart-container{position:absolute;inset:0;}
+  #gts-draw-canvas{position:absolute;inset:0;pointer-events:none;cursor:default;z-index:5;}
+  #gts-crosshair-ohlc{position:absolute;top:8px;right:12px;background:rgba(20,22,27,0.85);
+    border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:11.5px;
+    display:flex;gap:10px;direction:ltr;z-index:6;pointer-events:none;}
+  #gts-crosshair-ohlc span{color:var(--text-dim);}
+  #gts-crosshair-ohlc b{color:var(--text);margin-inline-start:3px;}
+
+  /* ---------- Right info panel ---------- */
+  #gts-infopanel{flex:0 0 176px;background:var(--panel);border-right:1px solid var(--border);
+    padding:12px 10px;overflow-y:auto;}
+  .gts-info-item{margin-bottom:12px;}
+  .gts-info-label{font-size:10.5px;color:var(--text-dim);margin-bottom:3px;}
+  .gts-info-value{font-size:13.5px;font-weight:700;direction:ltr;}
+  .gts-info-value.up{color:var(--up);} .gts-info-value.down{color:var(--down);}
+  #gts-conn-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-inline-end:6px;}
+  #gts-conn-dot.online{background:var(--up);box-shadow:0 0 6px var(--up);}
+  #gts-conn-dot.offline{background:var(--down);}
+
+  /* ---------- Bottom panel ---------- */
+  #gts-bottombar{flex:0 0 26px;background:var(--panel);border-top:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:10.5px;
+    color:var(--text-dim);}
+  #gts-bottombar .seg{display:flex;align-items:center;gap:6px;}
+
+  /* fullscreen */
+  #gts-root:fullscreen{border-radius:0;}
+</style>
+</head>
+<body>
+<div id="gts-root">
+
+  <!-- 1. Top Toolbar -->
+  <div id="gts-topbar">
+    <div class="gts-topbar-left">
+      <div class="gts-symbol">__SYMBOL__</div>
+      <div class="gts-price" id="gts-price">—</div>
+      <div class="gts-change" id="gts-change">—</div>
+      <div class="gts-tf-group" id="gts-tf-group">
+        <button class="gts-tf-btn" data-tf="M1">M1</button>
+        <button class="gts-tf-btn" data-tf="M5">M5</button>
+        <button class="gts-tf-btn" data-tf="M15">M15</button>
+        <button class="gts-tf-btn" data-tf="M30">M30</button>
+        <button class="gts-tf-btn active" data-tf="H1">H1</button>
+        <button class="gts-tf-btn" data-tf="H4">H4</button>
+        <button class="gts-tf-btn" data-tf="D1">D1</button>
+        <button class="gts-tf-btn" data-tf="W1">W1</button>
+        <button class="gts-tf-btn" data-tf="MN">MN</button>
+      </div>
+    </div>
+    <div class="gts-topbar-right">
+      <button class="gts-icon-btn" id="gts-btn-screenshot" title="اسکرین‌شات">📷</button>
+      <button class="gts-icon-btn" id="gts-btn-fullscreen" title="تمام‌صفحه">⛶</button>
+      <button class="gts-icon-btn" id="gts-btn-settings" title="تنظیمات چارت">⚙</button>
+    </div>
+  </div>
+
+  <div id="gts-body">
+
+    <!-- 3. Left Drawing Toolbar -->
+    <div id="gts-drawtoolbar">
+      <button class="gts-tool active" data-tool="cursor" title="Cursor">↖</button>
+      <div class="gts-tool-sep"></div>
+      <button class="gts-tool" data-tool="trendline" title="Trend Line">╱</button>
+      <button class="gts-tool" data-tool="hline" title="Horizontal Line">—</button>
+      <button class="gts-tool" data-tool="vline" title="Vertical Line">│</button>
+      <button class="gts-tool" data-tool="rect" title="Rectangle">▭</button>
+      <button class="gts-tool" data-tool="fib" title="Fibonacci Retracement">𝄞</button>
+      <button class="gts-tool" data-tool="arrow" title="Arrow">↗</button>
+      <button class="gts-tool" data-tool="text" title="Text">T</button>
+      <div class="gts-tool-sep"></div>
+      <button class="gts-tool" data-tool="delete" title="Delete Tool">🗑</button>
+    </div>
+
+    <!-- 2. Main Chart Area -->
+    <div id="gts-center">
+      <div id="gts-chart-wrap">
+        <div id="gts-chart-container"></div>
+        <canvas id="gts-draw-canvas"></canvas>
+        <div id="gts-crosshair-ohlc">
+          <span>O<b id="gts-o">—</b></span>
+          <span>H<b id="gts-h">—</b></span>
+          <span>L<b id="gts-l">—</b></span>
+          <span>C<b id="gts-c">—</b></span>
+        </div>
+      </div>
+
+      <!-- 5. Bottom Panel -->
+      <div id="gts-bottombar">
+        <div class="seg">
+          <span id="gts-volume-label">Volume: —</span>
+        </div>
+        <div class="seg">
+          <span id="gts-market-clock">--:--:-- UTC</span>
+        </div>
+        <div class="seg">
+          <span id="gts-conn-dot" class="offline"></span>
+          <span id="gts-conn-text">در حال اتصال...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Right Information Panel -->
+    <div id="gts-infopanel">
+      <div class="gts-info-item">
+        <div class="gts-info-label">قیمت لحظه‌ای</div>
+        <div class="gts-info-value" id="gts-info-price">—</div>
+      </div>
+      <div class="gts-info-item">
+        <div class="gts-info-label">High</div>
+        <div class="gts-info-value" id="gts-info-high">—</div>
+      </div>
+      <div class="gts-info-item">
+        <div class="gts-info-label">Low</div>
+        <div class="gts-info-value" id="gts-info-low">—</div>
+      </div>
+      <div class="gts-info-item">
+        <div class="gts-info-label">Open</div>
+        <div class="gts-info-value" id="gts-info-open">—</div>
+      </div>
+      <div class="gts-info-item">
+        <div class="gts-info-label">Close</div>
+        <div class="gts-info-value" id="gts-info-close">—</div>
+      </div>
+      <div class="gts-info-item">
+        <div class="gts-info-label">Spread</div>
+        <div class="gts-info-value" id="gts-info-spread">—</div>
+      </div>
+      <div class="gts-info-item">
+        <div class="gts-info-label">بسته‌شدن کندل تا</div>
+        <div class="gts-info-value" id="gts-info-countdown">—</div>
+      </div>
+      <div class="gts-info-item">
+        <div class="gts-info-label">وضعیت داده</div>
+        <div class="gts-info-value" id="gts-info-status">—</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // 0. Data injected from the Python/server side (real online data only)
+  // ============================================================
+  const SYMBOL = "__SYMBOL__";
+  const TIMEFRAME = "__TIMEFRAME__";
+  const CONNECTION_OK = __CONNECTION_OK__;
+  const CANDLES = __DATA_JSON__;              // [{time, open, high, low, close, volume}, ...]
+  const TF_SECONDS = {M1:60,M5:300,M15:900,M30:1800,H1:3600,H4:14400,D1:86400,W1:604800,MN:2592000};
+
+  // ============================================================
+  // 1. Chart engine init (TradingView Lightweight Charts)
+  // ============================================================
+  const container = document.getElementById("gts-chart-container");
+  const chart = LightweightCharts.createChart(container, {
+    layout: { background: { color: "#0e1117" }, textColor: "#c7c7c7", fontFamily: "Vazirmatn, Tahoma, sans-serif" },
+    grid: { vertLines: { color: "rgba(255,255,255,0.05)" }, horzLines: { color: "rgba(255,255,255,0.05)" } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: "rgba(255,255,255,0.1)" },
+    timeScale: { borderColor: "rgba(255,255,255,0.1)", timeVisible: true, secondsVisible: false, rightOffset: 6 },
+    autoSize: true,
+    handleScroll: true,
+    handleScale: true,
+  });
+
+  const candleSeries = chart.addCandlestickSeries({
+    upColor: "#26a69a", downColor: "#ef5350", borderVisible: false,
+    wickUpColor: "#26a69a", wickDownColor: "#ef5350",
+  });
+  const volumeSeries = chart.addHistogramSeries({
+    priceFormat: { type: "volume" }, priceScaleId: "", color: "#26a69a",
+  });
+  volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+
+  function setData(candles) {
+    const ohlc = candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close }));
+    const vol = candles.map(c => ({ time: c.time, value: c.volume || 0, color: c.close >= c.open ? "rgba(38,166,154,0.5)" : "rgba(239,83,80,0.5)" }));
+    candleSeries.setData(ohlc);
+    volumeSeries.setData(vol);
+    chart.timeScale().fitContent();
+  }
+  setData(CANDLES);
+
+  // ============================================================
+  // 2. Top toolbar: price / % change / timeframe switch
+  // ============================================================
+  function fmt(n, d) { return (n === undefined || n === null || isNaN(n)) ? "—" : Number(n).toFixed(d === undefined ? 2 : d); }
+
+  function updateHeaderFromLastCandles() {
+    if (!CANDLES.length) return;
+    const last = CANDLES[CANDLES.length - 1];
+    const prev = CANDLES.length > 1 ? CANDLES[CANDLES.length - 2] : last;
+    const chg = last.close - prev.close;
+    const chgPct = prev.close ? (chg / prev.close) * 100 : 0;
+    const up = chg >= 0;
+
+    document.getElementById("gts-price").textContent = fmt(last.close);
+    const chEl = document.getElementById("gts-change");
+    chEl.textContent = (up ? "▲ +" : "▼ ") + fmt(chg) + " (" + fmt(chgPct) + "%)";
+    chEl.className = "gts-change " + (up ? "up" : "down");
+
+    document.getElementById("gts-info-price").textContent = fmt(last.close);
+    document.getElementById("gts-info-price").className = "gts-info-value " + (up ? "up" : "down");
+    document.getElementById("gts-info-high").textContent = fmt(last.high);
+    document.getElementById("gts-info-low").textContent = fmt(last.low);
+    document.getElementById("gts-info-open").textContent = fmt(last.open);
+    document.getElementById("gts-info-close").textContent = fmt(last.close);
+    document.getElementById("gts-volume-label").textContent = "Volume: " + fmt(last.volume, 0);
+  }
+  updateHeaderFromLastCandles();
+
+  document.querySelectorAll(".gts-tf-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".gts-tf-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      // Timeframe switch requests a fresh online-data reload from the host app
+      // (this component never fabricates candles locally).
+      window.parent.postMessage({ gts_event: "timeframe_change", symbol: SYMBOL, timeframe: btn.dataset.tf }, "*");
+    });
+  });
+
+  // ============================================================
+  // 3. Crosshair -> OHLC popup + right panel live update
+  // ============================================================
+  chart.subscribeCrosshairMove(param => {
+    let bar = null;
+    if (param.time) {
+      const d = param.seriesData.get(candleSeries);
+      if (d) bar = d;
+    }
+    if (!bar && CANDLES.length) bar = CANDLES[CANDLES.length - 1];
+    if (!bar) return;
+    document.getElementById("gts-o").textContent = fmt(bar.open);
+    document.getElementById("gts-h").textContent = fmt(bar.high);
+    document.getElementById("gts-l").textContent = fmt(bar.low);
+    document.getElementById("gts-c").textContent = fmt(bar.close);
+  });
+
+  // ============================================================
+  // 4. Candle-close countdown, market clock, connection status
+  // ============================================================
+  const tfSec = TF_SECONDS[TIMEFRAME] || 3600;
+  function tick() {
+    const now = new Date();
+    document.getElementById("gts-market-clock").textContent =
+      now.toUTCString().split(" ")[4] + " UTC";
+
+    if (CANDLES.length) {
+      const lastTime = CANDLES[CANDLES.length - 1].time; // unix seconds
+      const nextClose = (lastTime + tfSec) * 1000;
+      let remaining = Math.max(0, Math.floor((nextClose - now.getTime()) / 1000));
+      const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
+      const ss = String(remaining % 60).padStart(2, "0");
+      document.getElementById("gts-info-countdown").textContent = mm + ":" + ss;
+    }
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  function setConnection(ok) {
+    const dot = document.getElementById("gts-conn-dot");
+    const txt = document.getElementById("gts-conn-text");
+    const info = document.getElementById("gts-info-status");
+    dot.className = ok ? "online" : "offline";
+    txt.textContent = ok ? "متصل به داده آنلاین" : "قطع اتصال داده";
+    info.textContent = ok ? "زنده ●" : "آفلاین";
+    info.className = "gts-info-value " + (ok ? "up" : "down");
+  }
+  setConnection(CONNECTION_OK);
+  document.getElementById("gts-info-spread").textContent = "—";
+
+  // ============================================================
+  // 5. Fullscreen / Screenshot / Settings
+  // ============================================================
+  document.getElementById("gts-btn-fullscreen").addEventListener("click", () => {
+    const root = document.getElementById("gts-root");
+    if (!document.fullscreenElement) root.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  });
+
+  document.getElementById("gts-btn-screenshot").addEventListener("click", () => {
+    const canvas = chart.takeScreenshot();
+    const link = document.createElement("a");
+    link.download = SYMBOL + "_" + TIMEFRAME + "_" + Date.now() + ".png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  });
+
+  const settingsPanel = document.createElement("div");
+  settingsPanel.style.cssText = "position:absolute;top:44px;left:10px;background:#181b22;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 12px;font-size:12px;z-index:20;display:none;min-width:170px;";
+  settingsPanel.innerHTML = `
+    <div style="margin-bottom:8px;font-weight:700;">تنظیمات چارت</div>
+    <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px;cursor:pointer;">
+      <input type="checkbox" id="gts-toggle-grid" checked/> نمایش Grid
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+      <input type="checkbox" id="gts-toggle-volume" checked/> نمایش حجم
+    </label>`;
+  document.getElementById("gts-root").appendChild(settingsPanel);
+  document.getElementById("gts-btn-settings").addEventListener("click", () => {
+    settingsPanel.style.display = settingsPanel.style.display === "none" ? "block" : "none";
+  });
+  settingsPanel.querySelector("#gts-toggle-grid").addEventListener("change", e => {
+    const on = e.target.checked;
+    chart.applyOptions({ grid: { vertLines: { visible: on }, horzLines: { visible: on } } });
+  });
+  settingsPanel.querySelector("#gts-toggle-volume").addEventListener("change", e => {
+    volumeSeries.applyOptions({ visible: e.target.checked });
+  });
+
+  // Double click resets the view (zoom/pan reset)
+  container.addEventListener("dblclick", () => chart.timeScale().fitContent());
+
+  // ============================================================
+  // 6. Left Drawing Toolbar — canvas overlay drawing engine
+  // ============================================================
+  const drawCanvas = document.getElementById("gts-draw-canvas");
+  const dctx = drawCanvas.getContext("2d");
+  let drawings = [];      // finalized shapes: {type, p1:{time,price}, p2:{time,price}, text, color}
+  let currentTool = "cursor";
+  let pendingP1 = null;   // first click point for 2-point tools
+  let previewP2 = null;
+
+  function resizeCanvas() {
+    const rect = container.getBoundingClientRect();
+    drawCanvas.width = rect.width;
+    drawCanvas.height = rect.height;
+    redrawAll();
+  }
+  new ResizeObserver(resizeCanvas).observe(container);
+  resizeCanvas();
+
+  function toXY(pt) {
+    const x = chart.timeScale().timeToCoordinate(pt.time);
+    const y = candleSeries.priceToCoordinate(pt.price);
+    return { x, y };
+  }
+
+  function drawTrendline(a, b, color) {
+    dctx.strokeStyle = color; dctx.lineWidth = 1.6;
+    dctx.beginPath(); dctx.moveTo(a.x, a.y); dctx.lineTo(b.x, b.y); dctx.stroke();
+  }
+  function drawArrow(a, b, color) {
+    drawTrendline(a, b, color);
+    const angle = Math.atan2(b.y - a.y, b.x - a.x);
+    const size = 9;
+    dctx.beginPath();
+    dctx.moveTo(b.x, b.y);
+    dctx.lineTo(b.x - size * Math.cos(angle - Math.PI / 6), b.y - size * Math.sin(angle - Math.PI / 6));
+    dctx.moveTo(b.x, b.y);
+    dctx.lineTo(b.x - size * Math.cos(angle + Math.PI / 6), b.y - size * Math.sin(angle + Math.PI / 6));
+    dctx.stroke();
+  }
+  function drawRect(a, b, color) {
+    dctx.strokeStyle = color; dctx.fillStyle = color.replace("1)", "0.12)");
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    const w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+    dctx.fillRect(x, y, w, h); dctx.strokeRect(x, y, w, h);
+  }
+  function drawHLine(a, color) {
+    dctx.strokeStyle = color; dctx.setLineDash([4, 3]); dctx.lineWidth = 1.2;
+    dctx.beginPath(); dctx.moveTo(0, a.y); dctx.lineTo(drawCanvas.width, a.y); dctx.stroke();
+    dctx.setLineDash([]);
+  }
+  function drawVLine(a, color) {
+    dctx.strokeStyle = color; dctx.setLineDash([4, 3]); dctx.lineWidth = 1.2;
+    dctx.beginPath(); dctx.moveTo(a.x, 0); dctx.lineTo(a.x, drawCanvas.height); dctx.stroke();
+    dctx.setLineDash([]);
+  }
+  function drawFib(a, b, color) {
+    const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+    const top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
+    const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x);
+    dctx.font = "10px Vazirmatn, Tahoma, sans-serif";
+    levels.forEach(l => {
+      const y = bottom - l * (bottom - top);
+      dctx.strokeStyle = "rgba(245,166,35,0.55)"; dctx.lineWidth = 1;
+      dctx.beginPath(); dctx.moveTo(x0, y); dctx.lineTo(x1, y); dctx.stroke();
+      dctx.fillStyle = "#f5a623";
+      dctx.fillText((l * 100).toFixed(1) + "%", x0 + 4, y - 3);
+    });
+  }
+  function drawText(a, text, color) {
+    dctx.fillStyle = color; dctx.font = "12px Vazirmatn, Tahoma, sans-serif";
+    dctx.fillText(text, a.x, a.y);
+  }
+
+  function redrawAll() {
+    dctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    drawings.forEach(d => renderShape(d));
+    if (pendingP1 && previewP2 && ["trendline", "rect", "fib", "arrow"].includes(currentTool)) {
+      renderShape({ type: currentTool, p1: pendingP1, p2: previewP2, color: "rgba(255,255,255,0.9)" }, true);
+    }
+  }
+  function renderShape(d) {
+    const a = toXY(d.p1);
+    if (a.x == null || a.y == null) return;
+    const color = d.color || "rgba(245,166,35,1)";
+    if (d.type === "hline") return drawHLine(a, color);
+    if (d.type === "vline") return drawVLine(a, color);
+    if (d.type === "text") return drawText(a, d.text || "", color);
+    if (!d.p2) return;
+    const b = toXY(d.p2);
+    if (b.x == null || b.y == null) return;
+    if (d.type === "trendline") return drawTrendline(a, b, color);
+    if (d.type === "arrow") return drawArrow(a, b, color);
+    if (d.type === "rect") return drawRect(a, b, color);
+    if (d.type === "fib") return drawFib(a, b, color);
+  }
+
+  // keep drawings anchored to price/time while panning & zooming
+  chart.timeScale().subscribeVisibleTimeRangeChange(redrawAll);
+  chart.subscribeCrosshairMove(() => { if (pendingP1) redrawAll(); });
+
+  function coordToPoint(evt) {
+    const rect = drawCanvas.getBoundingClientRect();
+    const x = evt.clientX - rect.left, y = evt.clientY - rect.top;
+    const time = chart.timeScale().coordinateToTime(x);
+    const price = candleSeries.coordinateToPrice(y);
+    return { time, price, x, y };
+  }
+
+  function hitTest(pt) {
+    const tolerance = 8;
+    for (let i = drawings.length - 1; i >= 0; i--) {
+      const d = drawings[i];
+      const a = toXY(d.p1);
+      if (a.x == null) continue;
+      if (d.type === "hline" && Math.abs(pt.y - a.y) < tolerance) return i;
+      if (d.type === "vline" && Math.abs(pt.x - a.x) < tolerance) return i;
+      if (d.type === "text" && Math.abs(pt.x - a.x) < 40 && Math.abs(pt.y - a.y) < 14) return i;
+      if (d.p2) {
+        const b = toXY(d.p2);
+        if (b.x == null) continue;
+        const distToSeg = pointToSegDist(pt.x, pt.y, a.x, a.y, b.x, b.y);
+        if (distToSeg < tolerance) return i;
+      }
+    }
+    return -1;
+  }
+  function pointToSegDist(px, py, x1, y1, x2, y2) {
+    const A = px - x1, B = py - y1, C = x2 - x1, D = y2 - y1;
+    const len2 = C * C + D * D || 1;
+    let t = Math.max(0, Math.min(1, (A * C + B * D) / len2));
+    const xx = x1 + t * C, yy = y1 + t * D;
+    return Math.hypot(px - xx, py - yy);
+  }
+
+  drawCanvas.addEventListener("mousedown", evt => {
+    if (currentTool === "cursor") return;
+    const pt = coordToPoint(evt);
+    if (pt.time == null || pt.price == null) return;
+
+    if (currentTool === "delete") {
+      const idx = hitTest({ x: pt.x, y: pt.y });
+      if (idx >= 0) { drawings.splice(idx, 1); redrawAll(); }
+      return;
+    }
+    if (currentTool === "hline") { drawings.push({ type: "hline", p1: { time: pt.time, price: pt.price } }); redrawAll(); return; }
+    if (currentTool === "vline") { drawings.push({ type: "vline", p1: { time: pt.time, price: pt.price } }); redrawAll(); return; }
+    if (currentTool === "text") {
+      const t = window.prompt("متن یادداشت را وارد کنید:", "");
+      if (t) { drawings.push({ type: "text", p1: { time: pt.time, price: pt.price }, text: t, color: "#ffffff" }); redrawAll(); }
+      return;
+    }
+    // two-point tools
+    if (!pendingP1) {
+      pendingP1 = { time: pt.time, price: pt.price };
+    } else {
+      drawings.push({ type: currentTool, p1: pendingP1, p2: { time: pt.time, price: pt.price } });
+      pendingP1 = null; previewP2 = null;
+      redrawAll();
+    }
+  });
+  drawCanvas.addEventListener("mousemove", evt => {
+    if (!pendingP1) return;
+    const pt = coordToPoint(evt);
+    if (pt.time == null || pt.price == null) return;
+    previewP2 = { time: pt.time, price: pt.price };
+    redrawAll();
+  });
+
+  document.querySelectorAll(".gts-tool").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".gts-tool").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentTool = btn.dataset.tool;
+      pendingP1 = null; previewP2 = null;
+      drawCanvas.style.pointerEvents = currentTool === "cursor" ? "none" : "auto";
+      drawCanvas.style.cursor = currentTool === "cursor" ? "default" : "crosshair";
+      redrawAll();
+    });
+  });
+
+})();
+</script>
+</body>
+</html>

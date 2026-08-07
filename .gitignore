@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.log
+data/*.csv
+!data/sample_xauusd_h1.csv
+.vscode/
+.idea/
+*.egg-info/
+build/
+dist/
+results/
+
+# مدل‌های train‌شده (فایل‌های باینری بزرگ) — با scripts/train_signal_model.py دوباره قابل‌ساختن‌اند
+models/*.joblib
+models/*.meta.json
+!models/.gitkeep
+
+# کلیدهای API — هرگز نباید commit شوند
+.streamlit/secrets.toml
+*.key
