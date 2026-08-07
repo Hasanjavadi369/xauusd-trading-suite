@@ -1,9 +1,15 @@
 # راهنمای استفاده — XAUUSD Trading Suite
 
+> پیش‌نیاز همه‌ی بخش‌های زیر: یک فایل CSV واقعی داشته باشید. اگر ندارید:
+> ```bash
+> export TWELVEDATA_API_KEY="کلید-شما"
+> python scripts/fetch_real_data.py --symbol XAU/USD --interval H1 --bars 5000 --out data/xauusd_real.csv
+> ```
+
 ## ۱. بک‌تست یک استراتژی
 
 ```bash
-python -m src.main --mode backtest --csv data/sample_xauusd_h1.csv
+python -m src.main --mode backtest --csv data/xauusd_real.csv
 ```
 
 خروجی شامل: تعداد معاملات، Win Rate، Profit Factor، Sharpe Ratio، Max Drawdown، سود/زیان خالص.
@@ -52,7 +58,7 @@ print(results.head())
 ## ۳. چارت تعاملی
 
 ```bash
-python -m src.main --mode chart --csv data/sample_xauusd_h1.csv
+python -m src.main --mode chart --csv data/xauusd_real.csv
 ```
 
 مرورگر را روی `http://127.0.0.1:8050` باز کنید. چارت شامل کندل‌استیک، حجم،
@@ -77,7 +83,7 @@ from src.indicators.calculator import compute_all_indicators
 from src.strategy.signal_engine import SMCConfluenceStrategy
 
 config = load_config("config/config.yaml")
-df = pd.read_csv("data/sample_xauusd_h1.csv", parse_dates=["datetime"])
+df = pd.read_csv("data/xauusd_real.csv", parse_dates=["datetime"])
 df = df.rename(columns={"datetime": "time"})
 
 df = compute_all_indicators(df, config)

@@ -4,8 +4,14 @@ __pycache__/
 venv/
 .env
 *.log
+
+# داده‌های واقعی بازار: شخصی/حجیم هستند، در گیت نباید commit شوند
 data/*.csv
-!data/sample_xauusd_h1.csv
+
+# آرتیفکت مدل آموزش‌دیده: حجیم و وابسته به داده شخصی کاربر است
+models/*.joblib
+models/*.json
+
 .vscode/
 .idea/
 *.egg-info/

@@ -2,7 +2,7 @@
 آموزش مدل یادگیری ماشین روی داده‌ی تاریخی و ذخیره‌ی آرتیفکت مدل.
 
 مثال اجرا:
-    python scripts/train_model.py --csv data/sample_xauusd_h1.csv \
+    python scripts/train_model.py --csv data/xauusd_real.csv  # با scripts/fetch_real_data.py بسازید \
         --out models/xauusd_model.joblib
 """
 import argparse

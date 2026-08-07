@@ -39,7 +39,6 @@ MODEL_PATH = "models/xauusd_model.joblib"
 st.set_page_config(page_title="XAUUSD Trading Suite", layout="wide", page_icon="📈")
 
 DEFAULT_CONFIG_PATH = "config/config.yaml"
-DEFAULT_SAMPLE_CSV = "data/sample_xauusd_h1.csv"
 
 
 # ---------------------------------------------------------------------- #
@@ -59,30 +58,31 @@ def load_csv_from_bytes(file_bytes: bytes) -> pd.DataFrame:
     return df.sort_values("time").reset_index(drop=True)
 
 
-@st.cache_data
-def load_default_sample() -> pd.DataFrame:
-    df = pd.read_csv(DEFAULT_SAMPLE_CSV, parse_dates=["datetime"])
-    return df.rename(columns={"datetime": "time"}).sort_values("time").reset_index(drop=True)
-
-
 # ---------------------------------------------------------------------- #
 # نوار کناری: تنظیمات
 # ---------------------------------------------------------------------- #
 st.sidebar.title("⚙️ تنظیمات XAUUSD Trading Suite")
 
 st.sidebar.subheader("منبع داده")
+st.sidebar.caption("⚠️ این نسخه فقط با داده واقعی کار می‌کند (بدون داده شبیه‌سازی‌شده).")
 data_source = st.sidebar.radio(
     "داده از کجا بیاید؟",
-    ["داده نمونه (شبیه‌سازی‌شده)", "آپلود CSV", "Twelve Data API (زنده)"],
+    ["آپلود CSV (تاریخچه واقعی)", "Twelve Data API (زنده)"],
     index=0,
 )
 
 uploaded = None
 td_symbol, td_interval, td_bars, td_fetch_btn = None, None, None, False
 
-if data_source == "آپلود CSV":
-    uploaded = st.sidebar.file_uploader("فایل CSV", type=["csv"])
-elif data_source == "Twelve Data API (زنده)":
+if data_source == "آپلود CSV (تاریخچه واقعی)":
+    uploaded = st.sidebar.file_uploader(
+        "فایل CSV واقعی (خروجی MT5 History Center یا Twelve Data)", type=["csv"]
+    )
+    with st.sidebar.expander("فرمت مورد نیاز CSV"):
+        st.write("ستون‌های لازم: `datetime` (یا `time`), `open`, `high`, `low`, `close`, "
+                 "و اختیاری `volume`. برای گرفتن فایل واقعی می‌توانید از "
+                 "`scripts/fetch_real_data.py` (نیازمند کلید Twelve Data) استفاده کنید.")
+else:
     td_symbol = st.sidebar.text_input("نماد (فرمت Twelve Data)", value="XAU/USD")
     td_interval = st.sidebar.selectbox("تایم‌فریم", ["M15", "M30", "H1", "H4", "D1"], index=2)
     td_bars = st.sidebar.slider("تعداد کندل دریافتی", 100, 2000, 500, step=100)
@@ -173,14 +173,20 @@ elif data_source == "Twelve Data API (زنده)":
             except Exception as e:
                 st.sidebar.error(f"خطای اتصال: {e}")
 
-    if "td_data" in st.session_state:
-        df_raw = st.session_state["td_data"]
-    else:
-        st.sidebar.info("روی «دریافت داده از Twelve Data» بزنید تا داده زنده بیاید.")
-        df_raw = load_default_sample()
+    df_raw = st.session_state.get("td_data")
 else:
-    df_raw = load_default_sample()
-    st.sidebar.info("از داده نمونه (شبیه‌سازی‌شده) استفاده می‌شود.")
+    df_raw = None
+
+if df_raw is None or len(df_raw) == 0:
+    st.title("📈 XAUUSD Trading Suite")
+    st.info(
+        "👋 برای شروع، از نوار کناری یک منبع داده واقعی انتخاب کنید:\n\n"
+        "- **آپلود CSV**: فایل تاریخچه‌ی واقعی (خروجی MT5 یا دانلود‌شده از Twelve Data)\n"
+        "- **Twelve Data API**: نماد و تایم‌فریم را انتخاب و روی «دریافت داده» بزنید\n\n"
+        "این نسخه دیگر از داده‌ی شبیه‌سازی‌شده استفاده نمی‌کند — تحلیل و بک‌تست فقط "
+        "روی داده‌ی واقعی بازار انجام می‌شود."
+    )
+    st.stop()
 
 df = compute_all_indicators(df_raw, config)
 

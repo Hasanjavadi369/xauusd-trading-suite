@@ -22,25 +22,29 @@ pip install -r requirements.txt
 pip install MetaTrader5
 ```
 
-## تست سریع (بدون MT5)
+## تست سریع با داده واقعی (بدون MT5)
 
-یک فایل CSV نمونه (شبیه‌سازی‌شده) از قبل در `data/sample_xauusd_h1.csv` موجود است.
-برای تولید دوباره یا با تعداد کندل دلخواه:
+⚠️ این پروژه دیگر داده‌ی شبیه‌سازی‌شده ندارد. برای تست سریع، یک فایل CSV واقعی از
+Twelve Data بگیرید (حساب رایگان کافی است):
 
 ```bash
-python scripts/generate_sample_data.py --bars 3000 --out data/sample_xauusd_h1.csv
+export TWELVEDATA_API_KEY="کلید-شما"
+python scripts/fetch_real_data.py --symbol XAU/USD --interval H1 --bars 5000 --out data/xauusd_real.csv
 ```
+
+یا هر CSV واقعی دیگری (مثلاً خروجی MT5 History Center) با ستون‌های
+`datetime/time, open, high, low, close, volume` را در `data/` قرار دهید.
 
 ### اجرای بک‌تست
 
 ```bash
-python -m src.main --mode backtest --csv data/sample_xauusd_h1.csv
+python -m src.main --mode backtest --csv data/xauusd_real.csv
 ```
 
 ### اجرای چارت تعاملی (در مرورگر باز می‌شود)
 
 ```bash
-python -m src.main --mode chart --csv data/sample_xauusd_h1.csv
+python -m src.main --mode chart --csv data/xauusd_real.csv
 ```
 
 ## اتصال به Twelve Data API (داده زنده، جایگزین سبک MT5)

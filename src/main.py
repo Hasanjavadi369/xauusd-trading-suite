@@ -7,8 +7,8 @@
   3) live     : اتصال زنده به MT5، دریافت آخرین سیگنال و (اختیاری) ارسال معامله
 
 مثال‌ها:
-    python -m src.main --mode backtest --csv data/sample_xauusd_h1.csv
-    python -m src.main --mode chart --csv data/sample_xauusd_h1.csv
+    python -m src.main --mode backtest --csv data/xauusd_real.csv  # با scripts/fetch_real_data.py بسازید
+    python -m src.main --mode chart --csv data/xauusd_real.csv  # با scripts/fetch_real_data.py بسازید
     python -m src.main --mode live --send-orders False
 """
 from __future__ import annotations

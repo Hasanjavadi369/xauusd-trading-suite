@@ -9,7 +9,7 @@
   - نشانگر Entry/SL/TP برای سیگنال فعلی
 
 اجرا:
-    python -m src.chart.chart_app --csv data/sample_xauusd_h1.csv
+    python -m src.chart.chart_app --csv data/xauusd_real.csv  # با scripts/fetch_real_data.py بسازید
 """
 from __future__ import annotations
 

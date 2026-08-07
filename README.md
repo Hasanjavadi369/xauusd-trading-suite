@@ -41,8 +41,16 @@ streamlit run streamlit_app.py
 
 ```bash
 pip install -r requirements.txt
-python -m src.main --mode backtest --csv data/sample_xauusd_h1.csv
+
+# دریافت داده تاریخی واقعی (نیازمند کلید رایگان Twelve Data)
+export TWELVEDATA_API_KEY="کلید-شما"
+python scripts/fetch_real_data.py --symbol XAU/USD --interval H1 --bars 5000 --out data/xauusd_real.csv
+
+python -m src.main --mode backtest --csv data/xauusd_real.csv
 ```
+
+⚠️ این پروژه از داده‌ی شبیه‌سازی‌شده استفاده نمی‌کند — تحلیل/بک‌تست/آموزش مدل فقط
+روی داده‌ی واقعی (Twelve Data یا خروجی MT5) انجام می‌شود.
 
 برای اتصال زنده به MT5 به `docs/INSTALL.md` مراجعه کنید (نیازمند ویندوز + ترمینال MetaTrader 5).
 
