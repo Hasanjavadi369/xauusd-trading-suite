@@ -1,4 +1,4 @@
-## v0.6.2 Focused Live Signal Engine — Gold + Bitcoin
+# Focused Live Signal Engine — Gold + Bitcoin
 
 The dashboard covers two instruments from the same page: **live XAU/USD (Gold)**
 and **live BTC/USD (Bitcoin)** signal generation, selectable with a switch at
