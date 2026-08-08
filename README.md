@@ -1,113 +1,385 @@
-# Focused Live Signal Engine — Gold + Bitcoin
-
-The dashboard covers two instruments from the same page: **live XAU/USD (Gold)**
-and **live BTC/USD (Bitcoin)** signal generation, selectable with a switch at
-the top of the dashboard. Both share the same Twelve Data API key and the same
-pipeline. It uses real M5/M15/H1/H4/D1 market data and follows:
-
-`Live Price → MTF → Structure → Liquidity/SMC/ICT → Technical/Candles → Volatility/Momentum → AI Confirmation → Score → BUY/SELL/NO TRADE → Entry/SL/TP`
-
-No synthetic market prices are generated. The AI layer is activated only when a trained real-data ensemble model is present.
-
-### کلید API
-
-کلید Twelve Data دیگر در داشبورد وارد نمی‌شود؛ به‌صورت خودکار و بی‌صدا از
-**Streamlit Secrets** خوانده می‌شود. قبل از اجرا، در فایل `.streamlit/secrets.toml`
-(یا در Streamlit Cloud → Settings → Secrets) این را اضافه کنید:
-
-```toml
-TWELVEDATA_API_KEY = "کلید_شما_اینجا"
-```
-
-اگر کلید تنظیم نشده باشد، داشبورد پیام خطای واضح می‌دهد و از اجرای تحلیل با
-داده‌ی جعلی/بدون کلید خودداری می‌کند.
-
 # XAUUSD Trading Suite
 
-نرم‌افزار حرفه‌ای تحلیل، بک‌تست و مدیریت معاملات برای طلا (XAUUSD) با پایتون.
+یک ابزار ماژولار برای **تحلیل بازار، تولید سیگنال، بک‌تست و مدیریت ریسک** با تمرکز اصلی بر XAU/USD (طلا).
 
-**توسعه‌دهنده:** Hasan Javadi
-**Telegram:** [@mr_hj369](https://t.me/mr_hj369)
+این پروژه با پایتون ساخته شده و بخش‌های مختلف تحلیل تکنیکال، Smart Money Concept (SMC/ICT)، مدیریت ریسک، بک‌تست و در صورت وجود مدل آموزش‌دیده، تأیید سیگنال با Machine Learning را در یک ساختار قابل توسعه کنار هم قرار می‌دهد.
 
-## ویژگی‌ها
+> **توجه:** این پروژه ابزار تحقیق و تحلیل است و سودآوری معاملات را تضمین نمی‌کند. قبل از استفاده از اجرای واقعی سفارش‌ها، منطق استراتژی و تنظیمات ریسک را روی حساب Demo و داده‌های معتبر بررسی کنید.
 
-- اتصال به MetaTrader 5 برای دریافت داده‌های زنده و ارسال/مدیریت سفارش‌ها
-- موتور تحلیل ترکیبی:
-  - Smart Money Concept (SMC) / ICT: Order Blocks, Fair Value Gaps (FVG), Liquidity, BOS, CHOCH, Supply & Demand
-  - Price Action: الگوهای کندلی، حمایت/مقاومت
-  - اندیکاتورهای کلاسیک: EMA, SMA, RSI, MACD, ATR, VWAP, ADX, Bollinger Bands, SuperTrend, Ichimoku, Fibonacci
-- پیشنهاد خودکار Entry / Stop Loss / Take Profit / Risk-Reward
-- مدیریت سرمایه و ریسک: حجم معامله خودکار بر اساس درصد ریسک، Trailing Stop، Break Even، Max Drawdown
-- موتور بک‌تست و بهینه‌سازی روی داده‌های تاریخی MT5 با معیارهای Win Rate، Profit Factor، Sharpe Ratio، Max Drawdown، Equity Curve
-- چارت تعاملی (کندل‌استیک + همه‌ی لایه‌های تحلیلی) با Plotly/Dash
-- 🆕 **مدل امتیازدهی سیگنال (Machine Learning)**: یک classifier (XGBoost/LightGBM)
-  که از همان فیچرهای موتور SMC (فاصله/قدرت Order Block، قدرت FVG، هم‌جهتی چند
-  اندیکاتور) یاد می‌گیرد احتمال موفقیت هر سیگنال چقدر است — تفسیرپذیر و کاملاً
-  قابل train روی داده‌ی خودتان (نه جعبه‌سیاه، و نه پیش‌بینی قیمت). جزئیات: بخش
-  «۵. مدل امتیازدهی سیگنال» در `docs/USAGE.md`.
-- معماری ماژولار و شی‌گرا، قابل توسعه برای استراتژی‌ها و مدل‌های هوش مصنوعی آینده
+---
 
-## 🆕 ارتقاهای این نسخه
+## معرفی
 
-- داشبورد Streamlit با طراحی تازه: هدر با قیمت لحظه‌ای و درصد تغییر، کارت‌های
-  خلاصه بازار، کارت سیگنال رنگی (خرید/فروش)، و چیدمان سه‌تبی (تحلیل زنده /
-  بک‌تست حرفه‌ای / راهنما).
-- کنترل نمایش لایه‌های چارت (Order Block، FVG، Supply/Demand، نقدینگی،
-  حمایت/مقاومت) به‌صورت جداگانه از نوار کناری.
-- تب بک‌تست با Equity Curve + Drawdown، جدول کامل معاملات و دانلود CSV.
-- این پروژه هیچ داده‌ی فرضی/شبیه‌سازی‌شده‌ای همراه ندارد؛ تمام تحلیل‌ها فقط
-  روی داده‌ی واقعی (CSV واقعی شما یا Twelve Data API زنده) اجرا می‌شوند.
+هدف پروژه این است که یک مسیر واحد برای تحلیل بازار فراهم کند:
 
-## وضعیت پروژه
+```text
+Market Data
+    ↓
+Indicators / Price Action
+    ↓
+SMC / ICT / Market Structure
+    ↓
+Multi-Timeframe Confluence
+    ↓
+Signal Engine
+    ↓
+Risk Management
+    ↓
+Entry / Stop Loss / Take Profit
+    ↓
+Backtest / Live Analysis
+```
 
-این نسخه **فاز ۱ (هسته‌ی تحلیلی و بک‌تست)** است. برای جزئیات نقشه‌ی راه به `docs/ARCHITECTURE.md` مراجعه کنید.
+در داشبورد زنده، در صورت وجود مدل آموزش‌دیده، یک لایه‌ی اختیاری Machine Learning نیز می‌تواند به عنوان **تأیید سیگنال** وارد تصمیم‌گیری شود. مدل برای امتیازدهی به سیگنال طراحی شده است و هدف آن پیش‌بینی مستقیم قیمت نیست.
 
-## 🌐 داشبورد وب زنده (لینک عمومی از طریق گیت‌هاب)
+---
 
-این پروژه یک داشبورد Streamlit (`streamlit_app.py`) دارد که با اتصال ریپازیتوری
-به [Streamlit Community Cloud](https://share.streamlit.io) به یک **لینک عمومی
-همیشه در دسترس** تبدیل می‌شود — با باز کردن لینک (حتی از گوشی)، داشبورد خودش
-اجرا می‌شود، بدون نیاز به نصب چیزی. کلید API را در Streamlit Secrets تنظیم کنید
-(بالاتر توضیح داده شد) — چیزی در خود صفحه وارد نمی‌کنید. راهنمای کامل: `docs/DEPLOY.md`
+## امکانات اصلی
 
-اجرای محلی داشبورد:
+### تحلیل تکنیکال
+
+مجموعه‌ای از اندیکاتورهای رایج برای بررسی روند، مومنتوم و نوسان بازار، از جمله:
+
+- EMA / SMA
+- RSI
+- MACD
+- ATR
+- ADX
+- VWAP
+- Bollinger Bands
+- SuperTrend
+- Ichimoku
+- Fibonacci
+
+### Smart Money Concept / ICT
+
+ماژول‌های تحلیل ساختار بازار و نقدینگی شامل:
+
+- Market Structure
+- BOS
+- CHOCH
+- Order Blocks
+- Fair Value Gaps (FVG)
+- Liquidity
+- Supply / Demand
+
+### تولید سیگنال
+
+موتور استراتژی می‌تواند عوامل مختلف تحلیل را با یکدیگر ترکیب کند و برای معامله موارد زیر را مشخص کند:
+
+- جهت معامله
+- Entry
+- Stop Loss
+- Take Profit
+- Risk / Reward
+- وضعیت سیگنال
+
+### مدیریت ریسک
+
+بخش مدیریت سرمایه برای کنترل اندازه معامله و سطوح خروج در نظر گرفته شده و شامل قابلیت‌هایی مانند:
+
+- Position Sizing بر اساس درصد ریسک
+- حد ضرر ساختاری و ATR
+- Break Even
+- Trailing Stop
+- محدودیت ریسک روزانه
+- کنترل Max Drawdown
+
+### بک‌تست
+
+موتور بک‌تست برای اجرای استراتژی روی داده‌های تاریخی و بررسی معیارهایی مانند:
+
+- Win Rate
+- Profit Factor
+- Sharpe Ratio
+- Maximum Drawdown
+- تعداد معاملات
+- Equity Curve
+
+همچنین ابزار Walk-Forward برای ارزیابی زمانی استراتژی در پروژه وجود دارد.
+
+### Machine Learning
+
+ماژول ML به صورت اختیاری در کنار موتور سیگنال استفاده می‌شود.
+
+مدل می‌تواند از ویژگی‌های استخراج‌شده از تحلیل بازار، مانند وضعیت ساختار، Order Block، FVG و هم‌جهتی اندیکاتورها، برای **امتیازدهی احتمال موفقیت یک سیگنال** استفاده کند.
+
+مدل‌های Ensemble و backendهایی مانند XGBoost و LightGBM در پروژه پشتیبانی می‌شوند.
+
+اگر مدل آموزش‌دیده وجود نداشته باشد، موتور تحلیل می‌تواند بدون لایه ML و بر اساس منطق قانون‌محور ادامه دهد.
+
+---
+
+## داشبورد زنده
+
+پروژه دارای یک داشبورد Streamlit برای تحلیل زنده است.
+
+داشبورد از داده‌های واقعی بازار استفاده می‌کند و در حال حاضر امکان انتخاب این نمادها را دارد:
+
+- **XAU/USD — Gold**
+- **BTC/USD — Bitcoin**
+
+تایم‌فریم‌های قابل استفاده:
+
+- M5
+- M15
+- H1
+- H4
+- D1
+
+جریان تحلیل داشبورد به صورت کلی:
+
+```text
+Live Price
+   ↓
+Multi-Timeframe Analysis
+   ↓
+SMC / ICT
+   ↓
+Technical & Momentum
+   ↓
+AI Confirmation (optional)
+   ↓
+Signal Score
+   ↓
+BUY / SELL / NO TRADE
+   ↓
+Entry / SL / TP
+```
+
+داده‌های داشبورد از **Twelve Data** دریافت می‌شوند.
+
+### تنظیم API Key
+
+کلید API نیازی به ورود داخل داشبورد ندارد و از Streamlit Secrets یا Environment Variable خوانده می‌شود.
+
+برای اجرای محلی می‌توانید فایل زیر را بسازید:
+
+```text
+.streamlit/secrets.toml
+```
+
+و داخل آن قرار دهید:
+
+```toml
+TWELVEDATA_API_KEY = "YOUR_API_KEY"
+```
+
+همچنین می‌توان کلید را از طریق متغیر محیطی تنظیم کرد:
+
+```bash
+export TWELVEDATA_API_KEY="YOUR_API_KEY"
+```
+
+در ویندوز:
+
+```powershell
+$env:TWELVEDATA_API_KEY="YOUR_API_KEY"
+```
+
+بدون API Key معتبر، داشبورد نباید با داده‌ی ساختگی یا قیمت‌های فرضی ادامه دهد.
+
+---
+
+## نصب
+
+ابتدا پروژه را دریافت کنید و وارد پوشه اصلی شوید:
+
+```bash
+cd xauusd_suite
+```
+
+سپس وابستگی‌ها را نصب کنید:
+
 ```bash
 pip install -r requirements.txt
+```
+
+برای استفاده از قابلیت اتصال به MetaTrader 5، ترمینال MT5 نیز باید روی سیستم نصب و در دسترس باشد. پکیج `MetaTrader5` در `requirements.txt` به صورت اختیاری در نظر گرفته شده است.
+
+---
+
+## اجرای داشبورد
+
+برای اجرای نسخه Streamlit:
+
+```bash
 streamlit run streamlit_app.py
 ```
 
-## نصب سریع (CLI)
+پس از اجرا، آدرس محلی نمایش‌داده‌شده توسط Streamlit را در مرورگر باز کنید.
+
+---
+
+## اجرای CLI
+
+نقطه ورود اصلی پروژه:
 
 ```bash
-pip install -r requirements.txt
+python -m src.main
+```
+
+### بک‌تست با CSV
+
+برای اجرای بک‌تست روی داده تاریخی:
+
+```bash
 python -m src.main --mode backtest --csv data/XAUUSD_H1_real.csv
 ```
 
-برای اتصال زنده به MT5 به `docs/INSTALL.md` مراجعه کنید (نیازمند ویندوز + ترمینال MetaTrader 5).
+### چارت
+
+برای اجرای چارت تعاملی روی فایل CSV:
+
+```bash
+python -m src.main --mode chart --csv data/XAUUSD_H1_real.csv
+```
+
+### حالت Live با MetaTrader 5
+
+برای دریافت سیگنال از MT5:
+
+```bash
+python -m src.main --mode live --send-orders False
+```
+
+اجرای سفارش واقعی باید با احتیاط و پس از بررسی کامل تنظیمات حساب، نماد، حجم، Stop/Freeze Level و منطق مدیریت ریسک انجام شود.
+
+---
+
+## فرمت داده تاریخی
+
+برای بک‌تست، فایل CSV باید شامل داده‌های OHLC و زمان باشد.
+
+حداقل ستون‌های مورد انتظار:
+
+```text
+datetime,open,high,low,close,volume
+```
+
+نمونه:
+
+```csv
+datetime,open,high,low,close,volume
+2026-01-05 10:00:00,2650.10,2652.40,2648.90,2651.80,1200
+2026-01-05 11:00:00,2651.80,2654.20,2650.70,2653.60,1350
+```
+
+داده باید مرتب و دارای timestamp معتبر باشد.
+
+> از قرار دادن قیمت ساختگی یا داده شبیه‌سازی‌شده به عنوان ورودی تحلیل واقعی خودداری کنید.
+
+---
 
 ## ساختار پروژه
 
-```
-xauusd_trading_suite/
-├── config/                # فایل تنظیمات (نمادها، ریسک، اندیکاتورها)
+```text
+xauusd_suite/
+├── config/
+│   └── config.yaml              # تنظیمات استراتژی، ریسک و بک‌تست
+│
 ├── src/
-│   ├── connectors/        # اتصال MT5 (داده و اجرای سفارش)
-│   ├── indicators/        # اندیکاتورهای کلاسیک
-│   ├── smc/                # Order Block, FVG, Liquidity, BOS/CHOCH
-│   ├── price_action/       # کندل‌استیک، حمایت/مقاومت
-│   ├── strategy/           # موتور سیگنال (ترکیب همه تحلیل‌ها)
-│   ├── risk_management/    # حجم معامله، تریلینگ استاپ، بریک‌ایون
-│   ├── backtest/           # موتور بک‌تست و بهینه‌سازی
-│   ├── ml/                 # مدل امتیازدهی سیگنال (train/predict، نه پیش‌بینی قیمت)
-│   ├── chart/              # چارت تعاملی
-│   └── core/               # مدل‌های داده و ابزارهای مشترک
+│   ├── backtest/                # موتور بک‌تست و Walk-Forward
+│   ├── chart/                   # چارت و نمایش داده
+│   ├── connectors/              # اتصال به منابع داده و MT5
+│   ├── core/                    # مدل‌ها و ابزارهای مشترک
+│   ├── indicators/              # اندیکاتورهای تکنیکال
+│   ├── ml/                      # آموزش و اجرای مدل‌های ML
+│   ├── phase5/                  # هسته validation و quant reliability
+│   ├── price_action/            # Price Action و الگوهای کندلی
+│   ├── risk_management/         # مدیریت سرمایه و معامله
+│   ├── signal_engine/            # موتور سیگنال زنده
+│   ├── smc/                     # SMC / ICT
+│   ├── strategy/                # ترکیب تحلیل‌ها و منطق استراتژی
+│   └── main.py                  # نقطه ورود CLI
+│
 ├── scripts/
-│   └── train_signal_model.py  # آموزش مدل امتیازدهی سیگنال (روی CSV واقعی)
-├── models/                 # مدل‌های train‌شده (.joblib) + متادیتا (.meta.json)
-├── tests/                  # تست‌های واحد
-└── docs/                   # مستندات
+│   └── train_signal_model.py    # آموزش مدل امتیازدهی سیگنال
+│
+├── models/                      # مدل‌های آموزش‌دیده
+├── tests/                       # تست‌ها
+├── docs/                        # مستندات
+├── streamlit_app.py             # داشبورد زنده
+├── requirements.txt
+└── README.md
 ```
 
-## لایسنس
+---
 
-MIT — به فایل `LICENSE` مراجعه کنید.
+## آموزش مدل ML
+
+در صورت فعال بودن بخش ML، مدل امتیازدهی سیگنال باید روی داده واقعی آموزش داده شود.
+
+اسکریپت مربوط به آموزش در این مسیر قرار دارد:
+
+```text
+scripts/train_signal_model.py
+```
+
+مدل ذخیره‌شده معمولاً در پوشه `models/` قرار می‌گیرد.
+
+اگر فایل مدل پیدا نشود یا مدل قابل بارگذاری نباشد، بخش ML اختیاری است و تحلیل قانون‌محور می‌تواند بدون آن ادامه پیدا کند.
+
+---
+
+## تست
+
+برای اجرای تست‌ها:
+
+```bash
+pytest
+```
+
+برای اجرای تست با جزئیات بیشتر:
+
+```bash
+pytest -v
+```
+
+---
+
+## داده واقعی و محدودیت‌های سیستم
+
+این پروژه برای تحلیل بازار به داده معتبر نیاز دارد.
+
+اصل مهم پروژه:
+
+> **No Synthetic Market Data**
+
+یعنی سیستم نباید برای جایگزین کردن داده بازار، قیمت ساختگی تولید کند.
+
+در حالت Live، داده از منبع بازار دریافت می‌شود. در حالت Backtest، داده از فایل تاریخی یا منبع داده‌ای که کاربر فراهم کرده است استفاده می‌شود.
+
+همچنین نتایج بک‌تست به معنی تضمین عملکرد آینده نیستند. عواملی مانند spread، commission، slippage، کیفیت داده و شرایط واقعی اجرای سفارش می‌توانند نتیجه معاملات واقعی را تغییر دهند.
+
+---
+
+## ریسک و استفاده واقعی
+
+این نرم‌افزار یک ابزار تحلیل و تحقیقاتی است و نباید بدون اعتبارسنجی مستقل برای تصمیم‌گیری مالی استفاده شود.
+
+پیشنهاد می‌شود قبل از اجرای واقعی:
+
+1. داده تاریخی را بررسی کنید.
+2. بک‌تست را روی بازه‌های مختلف اجرا کنید.
+3. از Walk-Forward و تست خارج از نمونه استفاده کنید.
+4. پارامترهای ریسک را متناسب با حساب تنظیم کنید.
+5. ابتدا روی حساب Demo اجرا کنید.
+6. رفتار Stop Loss، Take Profit، spread و محدودیت‌های broker را بررسی کنید.
+7. در صورت استفاده از ML، مدل را روی داده‌ای آموزش دهید که از داده تست جدا باشد.
+
+---
+
+## مجوز
+
+این پروژه تحت مجوز **MIT** منتشر شده است.
+
+برای جزئیات به فایل `LICENSE` مراجعه کنید.
+
+---
+
+## توسعه‌دهنده
+
+**Hasan Javadi**
+
+Telegram: [@mr_hj369](https://t.me/mr_hj369)

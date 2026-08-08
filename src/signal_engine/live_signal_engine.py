@@ -281,7 +281,29 @@ class LiveSignalEngine:
     def __init__(self, config: Optional[Mapping[str, Any]] = None):
         self.config = dict(config or {})
 
-    def analyze(self, frames: Mapping[str, pd.DataFrame], live_price: Optional[float] = None) -> FinalSignal:
+    def _resolve_model_path(self, symbol: Optional[str]) -> str:
+        """
+        اولویت انتخاب فایل مدل:
+        1. مدل اختصاصی همان نماد: models/signal_scorer_ensemble_<symbol>.joblib
+           (مثلاً signal_scorer_ensemble_btcusd.joblib یا ..._xauusd.joblib)
+        2. مسیر عمومی تعریف‌شده در config.yaml (ml.model_path)
+        این کار لازم است چون رفتار قیمتی طلا و بیت‌کوین متفاوت است و یک مدل
+        مشترک برای هر دو، امتیازدهی غیرقابل‌اعتمادی تولید می‌کند.
+        """
+        default_path = self.config.get("ml", {}).get("model_path", "models/signal_scorer_ensemble.joblib")
+        if not symbol:
+            return default_path
+        slug = symbol.replace("/", "").lower()
+        base = Path(default_path)
+        symbol_specific = base.parent / f"{base.stem}_{slug}{base.suffix}"
+        repo_root = Path(__file__).resolve().parents[2]
+        check_path = symbol_specific if symbol_specific.is_absolute() else repo_root / symbol_specific
+        if check_path.exists():
+            return str(symbol_specific)
+        return default_path
+
+    def analyze(self, frames: Mapping[str, pd.DataFrame], live_price: Optional[float] = None,
+                symbol: Optional[str] = None) -> FinalSignal:
         if not frames:
             return FinalSignal("NO TRADE", 0.0, live_price=live_price, timestamp=datetime.now(timezone.utc).isoformat(), error="No live market data.")
         prepared = {tf: _prepare(df, self.config) for tf, df in frames.items()}
@@ -304,7 +326,8 @@ class LiveSignalEngine:
 
         candidate_direction = "BUY" if candidate and candidate.direction.value == "LONG" else "SELL" if candidate else "NONE"
         features = candidate.metadata.get("features", {}) if candidate else {}
-        ai = _ai_layer(features, self.config.get("ml", {}).get("model_path", "models/signal_scorer_ensemble.joblib"), candidate_direction) if candidate else LayerScore("ai", 0.0, "NONE", {"active": False, "reason": "no SMC candidate"})
+        model_path = self._resolve_model_path(symbol)
+        ai = _ai_layer(features, model_path, candidate_direction) if candidate else LayerScore("ai", 0.0, "NONE", {"active": False, "reason": "no SMC candidate"})
         layers.append(ai)
 
         layer_map = {x.name: x for x in layers}

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -25,6 +26,20 @@ if str(ROOT) not in sys.path:
 
 from src.connectors.twelvedata_connector import fetch_time_series, fetch_latest_price, TwelveDataError
 from src.signal_engine.live_signal_engine import LiveSignalEngine
+
+# نتایج هر (نماد, تایم‌فریم) به مدت ۴۵ ثانیه کش می‌شود تا رفرش خودکار یا
+# سوییچ بین طلا/بیت‌کوین باعث درخواست تکراری و برخورد به سقف نرخ نشود.
+_CACHE_TTL_SECONDS = 45
+
+
+@st.cache_data(ttl=_CACHE_TTL_SECONDS, show_spinner=False)
+def _cached_time_series(symbol: str, interval: str, size: int, api_key: str):
+    return fetch_time_series(symbol, interval, size, api_key=api_key)
+
+
+@st.cache_data(ttl=_CACHE_TTL_SECONDS, show_spinner=False)
+def _cached_latest_price(symbol: str, api_key: str) -> float:
+    return fetch_latest_price(symbol, api_key=api_key)
 
 st.set_page_config(
     page_title="Trading Signal Engine",
@@ -90,6 +105,12 @@ with st.sidebar:
     st.caption("Source: Twelve Data")
     st.caption("No synthetic/demo market prices are used.")
 
+# All available timeframes, and their Twelve Data interval + candle count.
+ALL_TIMEFRAMES = {
+    "M5": ("5min", 400), "M15": ("15min", 400), "H1": ("1h", 300),
+    "H4": ("4h", 250), "D1": ("1day", 180),
+}
+
 # Instrument selector (same API key powers every instrument).
 symbol = st.radio(
     "Instrument",
@@ -100,15 +121,31 @@ symbol = st.radio(
 )
 decimals = INSTRUMENTS[symbol]["decimals"]
 
+# Only the selected timeframes are fetched/analyzed — H1 by default, to avoid
+# pulling all 5 timeframes on every run. Add more only when you need them.
+timeframes = st.multiselect(
+    "Timeframes",
+    options=list(ALL_TIMEFRAMES.keys()),
+    default=["H1"],
+    help="فقط تایم‌فریم‌های انتخاب‌شده از Twelve Data گرفته می‌شوند. برای تحلیل چند-تایم‌فریمی، چند تا اضافه کنید.",
+)
+if not timeframes:
+    st.warning("حداقل یک تایم‌فریم را انتخاب کنید.")
+    st.stop()
+
+run_key = f"{symbol}|{','.join(sorted(timeframes, key=list(ALL_TIMEFRAMES).index))}"
+
 if st.session_state["auto_refresh"]:
     try:
         from streamlit_autorefresh import st_autorefresh
-        st_autorefresh(interval=30000, key=f"live_refresh_{symbol.replace('/', '_')}")
+        # ۶۰ ثانیه به‌جای ۳۰ ثانیه — با کش ۴۵ ثانیه‌ای، سقف نرخ پلن رایگان
+        # Twelve Data برای این ابزار/تایم‌فریم‌ها رد نمی‌شود.
+        st_autorefresh(interval=60000, key=f"live_refresh_{run_key.replace('/', '_').replace(',', '_')}")
         refresh = True
     except Exception:
         pass
 
-need_run = refresh or symbol not in st.session_state["results"]
+need_run = refresh or run_key not in st.session_state["results"]
 
 if need_run:
     api_key = get_configured_api_key()
@@ -119,17 +156,22 @@ if need_run:
         )
         st.stop()
 
-    intervals = {"M5": ("5min", 400), "M15": ("15min", 400), "H1": ("1h", 300), "H4": ("4h", 250), "D1": ("1day", 180)}
+    intervals = {tf: ALL_TIMEFRAMES[tf] for tf in timeframes}
     frames = {}
     errors = []
-    progress = st.progress(0)
+    progress = st.progress(0) if len(intervals) > 1 else None
     for i, (tf, (interval, size)) in enumerate(intervals.items(), start=1):
         try:
-            frames[tf] = fetch_time_series(symbol, interval, size, api_key=api_key)
+            frames[tf] = _cached_time_series(symbol, interval, size, api_key)
         except Exception as exc:
             errors.append(f"{tf}: {exc}")
-        progress.progress(i / len(intervals))
-    progress.empty()
+        if progress:
+            progress.progress(i / len(intervals))
+        # فاصله‌ی کوتاه بین درخواست‌های پیاپی تا سقف نرخ لحظه‌ای Twelve Data رد نشود.
+        if i < len(intervals):
+            time.sleep(0.6)
+    if progress:
+        progress.empty()
 
     if not frames:
         st.error("Live market data could not be loaded.")
@@ -138,7 +180,7 @@ if need_run:
         st.stop()
 
     try:
-        live_price = fetch_latest_price(symbol, api_key=api_key)
+        live_price = _cached_latest_price(symbol, api_key)
     except Exception as exc:
         live_price = None
         errors.append(f"LIVE PRICE: {exc}")
@@ -152,12 +194,12 @@ if need_run:
         except Exception:
             config = {}
 
-    result = LiveSignalEngine(config).analyze(frames, live_price=live_price)
-    st.session_state["results"][symbol] = result.to_dict()
-    st.session_state["frames_by_symbol"][symbol] = frames
-    st.session_state["errors_by_symbol"][symbol] = errors
+    result = LiveSignalEngine(config).analyze(frames, live_price=live_price, symbol=symbol)
+    st.session_state["results"][run_key] = result.to_dict()
+    st.session_state["frames_by_symbol"][run_key] = frames
+    st.session_state["errors_by_symbol"][run_key] = errors
 
-result = st.session_state["results"].get(symbol)
+result = st.session_state["results"].get(run_key)
 if not result:
     st.stop()
 
@@ -221,9 +263,9 @@ if result.get("ai_active"):
 else:
     st.warning("AI confirmation is not active: no trained real-data ensemble model is installed. The engine will not invent an AI score.")
 
-if st.session_state["errors_by_symbol"].get(symbol):
+if st.session_state["errors_by_symbol"].get(run_key):
     with st.expander("Live data warnings"):
-        for e in st.session_state["errors_by_symbol"][symbol]:
+        for e in st.session_state["errors_by_symbol"][run_key]:
             st.write("•", e)
 
 with st.expander("Multi-Timeframe details"):
@@ -233,8 +275,10 @@ with st.expander("Multi-Timeframe details"):
         st.dataframe(pd.DataFrame(detail).T, use_container_width=True)
 
 with st.expander("Live chart"):
-    frames = st.session_state["frames_by_symbol"].get(symbol, {})
-    df = frames.get("M15")
+    frames = st.session_state["frames_by_symbol"].get(run_key, {})
+    # نمایش چارت بر اساس اولین تایم‌فریم واقعاً گرفته‌شده (ترجیح با M15، بعد H1، بعد هرچه موجود است).
+    chart_tf = next((tf for tf in ("M15", "H1", "M5", "H4", "D1") if tf in frames), next(iter(frames), None))
+    df = frames.get(chart_tf) if chart_tf else None
     if df is not None and not df.empty:
         try:
             import plotly.graph_objects as go

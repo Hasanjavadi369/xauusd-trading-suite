@@ -78,7 +78,42 @@ Stop Loss. **این مدل قیمت را پیش‌بینی نمی‌کند** —
 موجود را امتیازدهی می‌کند و کاملاً قابل train روی داده‌ی خودتان و تفسیرپذیر
 (با گزارش اهمیت فیچرها) است.
 
-### ۵.۱ آموزش مدل
+### ۵.۱ آموزش مدل روی داده‌ی زنده‌ی Twelve Data (برای داشبورد وب)
+
+اگر می‌خواهید در داشبورد وب (`streamlit_app.py`) لایه‌ی AI برای طلا/بیت‌کوین
+فعال شود، اول باید چند سال داده‌ی واقعی دانلود کنید (چون هر درخواست Twelve
+Data حداکثر ۵۰۰۰ کندل برمی‌گرداند)، سپس مدل را روی همان داده train کنید.
+این کار را روی سیستم خودتان اجرا کنید (نه داخل خود داشبورد وب) چون دانلود چند
+سال داده چند دقیقه طول می‌کشد و باید سقف نرخ API رعایت شود:
+
+```bash
+# ۱) دانلود ۳ سال کندل واقعی H1 طلا
+python -m scripts.fetch_historical_data --symbol XAU/USD --interval H1 \
+    --years 3 --output data/XAUUSD_H1_real.csv
+
+# ۲) آموزش مدل مخصوص طلا
+python -m scripts.train_signal_model --csv data/XAUUSD_H1_real.csv \
+    --output models/signal_scorer_ensemble_xauusd.joblib
+
+# همین دو مرحله را برای بیت‌کوین هم تکرار کنید
+python -m scripts.fetch_historical_data --symbol BTC/USD --interval H1 \
+    --years 3 --output data/BTCUSD_H1_real.csv
+python -m scripts.train_signal_model --csv data/BTCUSD_H1_real.csv \
+    --output models/signal_scorer_ensemble_btcusd.joblib
+```
+
+نام‌گذاری فایل خروجی مهم است: موتور سیگنال زنده به‌صورت خودکار دنبال
+`models/signal_scorer_ensemble_<symbol>.joblib` می‌گردد (مثلاً `..._xauusd.joblib`
+یا `..._btcusd.joblib`) و اگر پیدا شود، همان مدل مخصوص همان نماد را بارگذاری
+می‌کند. بعد از این مرحله، این دو فایل را همراه ریپازیتوری commit/push کنید تا
+در دیپلوی Streamlit Cloud هم در دسترس باشند — و لایه‌ی AI در داشبورد به‌صورت
+خودکار «ACTIVE» می‌شود.
+
+> ⚠️ با داده‌ی کم (کمتر از چند صد سیگنال برچسب‌خورده) مدل قابل‌اعتماد نیست.
+> اسکریپت `train_signal_model.py` تعداد سیگنال‌های برچسب‌خورده را گزارش
+> می‌کند — اگر خیلی کم بود، بازه‌ی `--years` را افزایش دهید.
+
+### ۵.۲ آموزش مدل از روی CSV دلخواه
 
 ```bash
 python scripts/train_signal_model.py --csv data/XAUUSD_H1_real.csv
