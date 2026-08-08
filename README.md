@@ -111,26 +111,3 @@ xauusd_trading_suite/
 ## لایسنس
 
 MIT — به فایل `LICENSE` مراجعه کنید.
-
-
-## v0.2.0-phase2 — Execution & Risk Engine
-- Market-entry based SL/TP construction instead of using the order-block edge as the execution price.
-- Structure + ATR stop placement with minimum-risk validation and configurable buffers.
-- Guaranteed directional validity of SL/TP and exact target R/R from the actual entry.
-- MT5 execution now validates broker stop/freeze distance and normalizes prices to symbol digits.
-- Trade metadata is preserved for AI/analytics.
-- Added dedicated risk-level tests.
-
-
-## Phase 3 — Advanced Intelligence & Execution (v0.3.0)
-
-Phase 3 adds a production-oriented decision and execution layer without inventing market data:
-
-- Market regime detection (trend/range + volatility state)
-- Multi-timeframe confluence utilities
-- Broker-aware execution validation (spread, stop/freeze levels, price precision)
-- Dynamic break-even and ATR trailing-stop management
-- Chronological walk-forward backtesting to reduce overfitting risk
-- Regression tests for the new components
-
-**Important:** backtests remain simulations and do not guarantee live profitability. Live execution must be validated on the target broker's demo environment first.
