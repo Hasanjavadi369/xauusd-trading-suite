@@ -1,11 +1,26 @@
-## v0.6.0 Focused Live Signal Engine
+## v0.6.2 Focused Live Signal Engine — Gold + Bitcoin
 
-The current dashboard is intentionally focused on one task: **live XAUUSD signal generation**.
-It uses real M5/M15/H1/H4/D1 market data and follows:
+The dashboard covers two instruments from the same page: **live XAU/USD (Gold)**
+and **live BTC/USD (Bitcoin)** signal generation, selectable with a switch at
+the top of the dashboard. Both share the same Twelve Data API key and the same
+pipeline. It uses real M5/M15/H1/H4/D1 market data and follows:
 
 `Live Price → MTF → Structure → Liquidity/SMC/ICT → Technical/Candles → Volatility/Momentum → AI Confirmation → Score → BUY/SELL/NO TRADE → Entry/SL/TP`
 
 No synthetic market prices are generated. The AI layer is activated only when a trained real-data ensemble model is present.
+
+### کلید API
+
+کلید Twelve Data دیگر در داشبورد وارد نمی‌شود؛ به‌صورت خودکار و بی‌صدا از
+**Streamlit Secrets** خوانده می‌شود. قبل از اجرا، در فایل `.streamlit/secrets.toml`
+(یا در Streamlit Cloud → Settings → Secrets) این را اضافه کنید:
+
+```toml
+TWELVEDATA_API_KEY = "کلید_شما_اینجا"
+```
+
+اگر کلید تنظیم نشده باشد، داشبورد پیام خطای واضح می‌دهد و از اجرای تحلیل با
+داده‌ی جعلی/بدون کلید خودداری می‌کند.
 
 # XAUUSD Trading Suite
 
@@ -52,7 +67,8 @@ No synthetic market prices are generated. The AI layer is activated only when a 
 این پروژه یک داشبورد Streamlit (`streamlit_app.py`) دارد که با اتصال ریپازیتوری
 به [Streamlit Community Cloud](https://share.streamlit.io) به یک **لینک عمومی
 همیشه در دسترس** تبدیل می‌شود — با باز کردن لینک (حتی از گوشی)، داشبورد خودش
-اجرا می‌شود، بدون نیاز به نصب چیزی. راهنمای کامل: `docs/DEPLOY.md`
+اجرا می‌شود، بدون نیاز به نصب چیزی. کلید API را در Streamlit Secrets تنظیم کنید
+(بالاتر توضیح داده شد) — چیزی در خود صفحه وارد نمی‌کنید. راهنمای کامل: `docs/DEPLOY.md`
 
 اجرای محلی داشبورد:
 ```bash

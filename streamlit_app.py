@@ -51,8 +51,25 @@ INSTRUMENTS = {
     "BTC/USD": {"label": "₿ Bitcoin (BTC/USD)", "decimals": 2},
 }
 
+
+def get_configured_api_key() -> str:
+    """
+    کلید API را خودکار و بی‌صدا از تنظیمات استریم‌لیت می‌خواند — بدون هیچ
+    ورودی در رابط کاربری. ترتیب اولویت:
+    1. st.secrets["TWELVEDATA_API_KEY"] (یا "twelvedata_api_key")
+    2. متغیر محیطی TWELVEDATA_API_KEY / TWELVE_DATA_API_KEY
+    """
+    try:
+        if "TWELVEDATA_API_KEY" in st.secrets:
+            return str(st.secrets["TWELVEDATA_API_KEY"]).strip()
+        if "twelvedata_api_key" in st.secrets:
+            return str(st.secrets["twelvedata_api_key"]).strip()
+    except Exception:
+        pass
+    return os.getenv("TWELVEDATA_API_KEY", os.getenv("TWELVE_DATA_API_KEY", "")).strip()
+
+
 DEFAULTS = {
-    "api_key": os.getenv("TWELVEDATA_API_KEY", os.getenv("TWELVE_DATA_API_KEY", "")),
     "symbol": "XAU/USD",
     "results": {},   # symbol -> result dict
     "frames_by_symbol": {},  # symbol -> {tf: df}
@@ -68,12 +85,6 @@ st.caption("Live-only • Multi-Timeframe • SMC / ICT • Technical • Moment
 
 with st.sidebar:
     st.subheader("Live Data")
-    st.session_state["api_key"] = st.text_input(
-        "Twelve Data API Key",
-        value=st.session_state["api_key"],
-        type="password",
-        help="The key is used only at runtime and is not written into the repository. Shared across all instruments below.",
-    )
     st.session_state["auto_refresh"] = st.toggle("Auto refresh", value=st.session_state["auto_refresh"])
     refresh = st.button("Run Live Analysis", type="primary", use_container_width=True)
     st.caption("Source: Twelve Data")
@@ -100,9 +111,12 @@ if st.session_state["auto_refresh"]:
 need_run = refresh or symbol not in st.session_state["results"]
 
 if need_run:
-    api_key = st.session_state["api_key"].strip()
+    api_key = get_configured_api_key()
     if not api_key:
-        st.warning("Enter your Twelve Data API key in the sidebar to start live analysis.")
+        st.error(
+            "کلید Twelve Data تنظیم نشده است. آن را در Streamlit → Settings → "
+            "Secrets با کلید `TWELVEDATA_API_KEY` اضافه کنید، سپس اپ را دوباره اجرا کنید."
+        )
         st.stop()
 
     intervals = {"M5": ("5min", 400), "M15": ("15min", 400), "H1": ("1h", 300), "H4": ("4h", 250), "D1": ("1day", 180)}
