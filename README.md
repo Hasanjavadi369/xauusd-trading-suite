@@ -1,3 +1,12 @@
+## v0.6.0 Focused Live Signal Engine
+
+The current dashboard is intentionally focused on one task: **live XAUUSD signal generation**.
+It uses real M5/M15/H1/H4/D1 market data and follows:
+
+`Live Price → MTF → Structure → Liquidity/SMC/ICT → Technical/Candles → Volatility/Momentum → AI Confirmation → Score → BUY/SELL/NO TRADE → Entry/SL/TP`
+
+No synthetic market prices are generated. The AI layer is activated only when a trained real-data ensemble model is present.
+
 # XAUUSD Trading Suite
 
 نرم‌افزار حرفه‌ای تحلیل، بک‌تست و مدیریت معاملات برای طلا (XAUUSD) با پایتون.

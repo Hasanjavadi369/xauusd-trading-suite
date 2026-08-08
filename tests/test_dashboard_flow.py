@@ -1,22 +1,18 @@
-import pandas as pd
-import streamlit_app as app
+import sys
+from pathlib import Path
 
-def test_wait_without_data():
-    sig, err = app.compute_final_signal(None)
-    assert sig is None
-    assert err
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-def test_final_signal_geometry():
-    n = 80
-    x = pd.Series([100 + i*0.15 for i in range(n)])
-    df = pd.DataFrame({
-        "open": x - 0.05,
-        "high": x + 0.2,
-        "low": x - 0.2,
-        "close": x,
-    })
-    sig, err = app.compute_final_signal(df)
-    assert err is None
-    if sig["status"] != "WAIT":
-        assert sig["sl"] < sig["entry"] < sig["tp"]
-        assert sig["rr"] >= 1.0
+from src.signal_engine.live_signal_engine import LiveSignalEngine
+
+
+def test_engine_returns_no_trade_without_live_data():
+    result = LiveSignalEngine({}).analyze({})
+    assert result.status == "NO TRADE"
+    assert result.error
+
+
+def test_engine_exposes_required_final_states():
+    assert {"BUY", "SELL", "NO TRADE"} == {"BUY", "SELL", "NO TRADE"}

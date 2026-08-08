@@ -47,7 +47,7 @@ backtest:
   slippage_points: 5
 
 ml:
-  enabled: false                     # اگر true باشد و model_path موجود باشد، امتیاز مدل به سیگنال‌ها اضافه می‌شود
+  enabled: true                     # اگر true باشد و model_path موجود باشد، امتیاز مدل به سیگنال‌ها اضافه می‌شود
   model_path: "models/signal_scorer_ensemble.joblib"   # موتور Ensemble (پیش‌فرض) یا فایل SignalScorer قدیمی
   min_probability: 0.0                # اگر > 0 باشد، سیگنال‌هایی با ml_probability کمتر از این مقدار در بک‌تست/زنده فیلتر می‌شوند
   continuous_learning:
